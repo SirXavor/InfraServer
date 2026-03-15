@@ -1,4 +1,17 @@
-# Instalación de K3s + ingress-nginx + ArgoCD
+# InfraServer — Bootstrap híbrido con Kustomize + Helm + ArgoCD
+
+Este repositorio define un bootstrap GitOps completo para K3s usando:
+
+* **Kustomize** (con `--enable-helm`)
+* **HelmCharts** renderizados por Kustomize
+* **ArgoCD** instalado vía Helm en el bootstrap
+* **App‑of‑Apps** (`infra-root`)
+* **ingress-nginx** en baremetal (hostNetwork + SSL passthrough)
+* **provisioning** gestionado por ArgoCD
+
+Todo se despliega con un único comando.
+
+---
 
 ## 1. Instalar K3s sin Traefik ni ServiceLB
 
@@ -8,136 +21,63 @@ curl -sfL https://get.k3s.io | \
   sh -
 ```
 
-Esto deja un cluster K3s limpio, sin Traefik y sin ServiceLB.
-
----
-
-## 2. Permitir que el nodo ejecute pods (quitar taints)
+## 2. Quitar taints del nodo
 
 ```bash
 kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
 kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true
 ```
 
----
-
-## 3. Instalar ingress-nginx (modo baremetal)
-
-### Crear namespace
+## 3. Instalar Kustomize (solo la primera vez)
 
 ```bash
-kubectl create namespace ingress-nginx
+curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+sudo mv kustomize /usr/local/bin/
 ```
 
-### Instalar manifiesto baremetal
+Comprobar:
 
 ```bash
-kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.1/deploy/static/provider/baremetal/deploy.yaml
+kustomize version
 ```
 
----
-
-## 4. Activar hostNetwork en ingress-nginx
-
-Editar el Deployment:
+## 4. Clonar este repositorio
 
 ```bash
-kubectl -n ingress-nginx edit deploy ingress-nginx-controller
+git clone https://github.com/SirXavor/InfraServer.git
+cd InfraServer
 ```
 
-Añadir dentro de `spec.template.spec`:
-
-```yaml
-hostNetwork: true
-dnsPolicy: ClusterFirstWithHostNet
-```
-
-Esto hace que ingress-nginx escuche directamente en los puertos **80/443** del host.
-
----
-
-## 5. Activar SSL passthrough en ingress-nginx
-
-En el mismo Deployment, dentro de `args:` del contenedor:
-
-```yaml
-- --enable-ssl-passthrough
-```
-
-Esto permite que ArgoCD reciba HTTPS real, necesario para que el login funcione.
-
----
-
-## 6. Instalar Helm
+## 5. Desplegar el bootstrap completo
 
 ```bash
-curl https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+kustomize build bootstrapInfra --enable-helm | kubectl apply -f -
 ```
 
----
+Esto instala:
 
-## 7. Configurar kubeconfig para Helm
+* ingress-nginx
+* ArgoCD (vía Helm)
+* App‑of‑Apps (infra-root)
+* provisioning
+
+## 6. Borrar artefactos temporales (opcional)
+
+Kustomize descarga el chart de ArgoCD en:
+
+```
+bootstrapInfra/charts/
+```
+
+Puedes borrarlo:
 
 ```bash
-export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+rm -rf bootstrapInfra/charts/
 ```
 
-Se puede añadir a `~/.bashrc` para hacerlo permanente.
+Y está ignorado en `.gitignore`.
 
----
-
-## 8. Añadir el repositorio de ArgoCD para Helm
-
-```bash
-helm repo add argo https://argoproj.github.io/argo-helm
-helm repo update
-```
-
----
-
-## 9. Crear namespace para ArgoCD
-
-```bash
-kubectl create namespace argocd
-```
-
----
-
-## 10. Crear `values.yaml` para ArgoCD (sin ApplicationSet)
-
-```yaml
-nameOverride: argocd
-
-applicationset:
-  enabled: false
-
-server:
-  ingress:
-    enabled: true
-    ingressClassName: "nginx"
-    hostname: "argocd.local"
-    path: /
-    pathType: Prefix
-    tls: false
-    annotations:
-      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
-      nginx.ingress.kubernetes.io/ssl-passthrough: "true"
-```
-
----
-
-## 11. Instalar ArgoCD con Helm
-
-```bash
-helm upgrade --install argocd argo/argo-cd \
-  --namespace argocd \
-  --version 8.0.0 \
-  -f values.yaml
-```
-
----
-
-## 12. Obtener la contraseña inicial de ArgoCD
+## 7. Obtener la contraseña inicial de ArgoCD
 
 ```bash
 kubectl -n argocd get secret argocd-initial-admin-secret \
@@ -150,24 +90,15 @@ Usuario:
 admin
 ```
 
----
-
-## 13. Añadir entrada en el hosts de Windows
+## 8. Añadir entrada en el hosts de Windows
 
 ```
 192.168.1.70   argocd.local
 ```
 
----
-
-## 14. Acceder a ArgoCD
+## 9. Acceder a ArgoCD
 
 ```
 https://argocd.local
 ```
 
-El login funciona porque:
-
-* ingress-nginx está en **hostNetwork**
-* **SSL passthrough** está activado
-* el **Ingress reenvía HTTPS directamente al servidor de ArgoCD**
