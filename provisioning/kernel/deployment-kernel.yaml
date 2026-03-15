@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kernel-provisioning
+  namespace: provisioning
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kernel-provisioning
+  template:
+    metadata:
+      labels:
+        app: kernel-provisioning
+    spec:
+      containers:
+      - name: kernel-provisioning
+        image: xavor/kernel-provisioning:1.0
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP

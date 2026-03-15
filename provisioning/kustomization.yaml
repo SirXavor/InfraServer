@@ -1,5 +1,6 @@
 resources:
   - namespace.yaml
-  - deployment.yaml
-  - service.yaml
-  - ingress.yaml
+  - kernel/deployment-kernel.yaml
+  - kernel/service-kernel.yaml
+  - kernel/ingress.yaml
+  - tftp/deployment-tftp.yaml

@@ -1,0 +1,23 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: tftp-provisioning
+  namespace: provisioning
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: tftp-provisioning
+  template:
+    metadata:
+      labels:
+        app: tftp-provisioning
+    spec:
+      containers:
+      - name: tftp-provisioning
+        image: xavor/tftp-provisioning:1.0
+        ports:
+        - name: tftp
+          containerPort: 69
+          hostPort: 69
+          protocol: UDP
