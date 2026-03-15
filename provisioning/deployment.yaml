@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: provisioning-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: provisioning-server
+  template:
+    metadata:
+      labels:
+        app: provisioning-server
+    spec:
+      containers:
+      - name: provisioning
+        image: xavor/provisioning:24.04.4
+        ports:
+        - containerPort: 80

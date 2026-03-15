@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: provisioning-server
+spec:
+  selector:
+    app: provisioning-server
+  ports:
+  - port: 80
+    targetPort: 80
