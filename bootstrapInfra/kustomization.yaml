@@ -6,6 +6,7 @@ resources:
   - ingress-nginx.yaml
   - root.yaml
   - apps/provisioning.yaml
+  - apps/coredns.yaml
 
 helmCharts:
   - name: argo-cd
