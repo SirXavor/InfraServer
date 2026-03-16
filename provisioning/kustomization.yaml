@@ -4,3 +4,11 @@ resources:
   - kernel/service-kernel.yaml
   - kernel/ingress.yaml
   - tftp/deployment-tftp.yaml
+
+configMapGenerator:
+  - name: provisioning-configs
+    namespace: provisioning
+    files:
+      - kernel/configs/
+generatorOptions:
+  disableNameSuffixHash: true

@@ -15,8 +15,16 @@ spec:
     spec:
       containers:
       - name: kernel-provisioning
-        image: xavor/kernel-provisioning:1.0
+        image: xavor/kernel-provisioning:2.0
         ports:
         - name: http
           containerPort: 80
-          protocol: TCP
+        - name: dynamic
+          containerPort: 8080
+        volumeMounts:
+        - name: configs
+          mountPath: /configs
+      volumes:
+      - name: configs
+        configMap:
+          name: provisioning-configs
