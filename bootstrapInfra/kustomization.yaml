@@ -5,6 +5,7 @@ resources:
   - namespace.yaml
   - ingress-nginx.yaml
   - root.yaml
+  - metallb/
 
 helmCharts:
   - name: argo-cd
