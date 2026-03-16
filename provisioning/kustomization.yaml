@@ -10,6 +10,6 @@ configMapGenerator:
     namespace: provisioning
     files:
       - kernel/configs/default.yaml
-      - kernel/configs/aa:bb:cc:dd:ee:ff.yaml
+      - kernel/configs/aa-bb-cc-dd-ee-ff.yaml
 generatorOptions:
   disableNameSuffixHash: true
