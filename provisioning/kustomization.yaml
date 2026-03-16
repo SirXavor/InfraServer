@@ -9,6 +9,6 @@ configMapGenerator:
   - name: provisioning-configs
     namespace: provisioning
     files:
-      - kernel/configs/
+      - kernel/configs
 generatorOptions:
   disableNameSuffixHash: true
