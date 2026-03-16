@@ -5,7 +5,7 @@ Este repositorio define un bootstrap GitOps completo para K3s usando:
 * **Kustomize** (con `--enable-helm`)
 * **HelmCharts** renderizados por Kustomize
 * **ArgoCD** instalado vía Helm en el bootstrap
-* **App‑of‑Apps** (`infra-root`)
+* **App-of-Apps** (`infra-root`)
 * **ingress-nginx** en baremetal (hostNetwork + SSL passthrough)
 * **provisioning** gestionado por ArgoCD
 
@@ -58,24 +58,17 @@ Esto instala:
 
 * ingress-nginx
 * ArgoCD (vía Helm)
-* App‑of‑Apps (infra-root)
+* App-of-Apps (`infra-root`)
 * provisioning
 
-## 6. Borrar artefactos temporales (opcional)
+## 6. Instalar la aplicación raíz de ArgoCD
 
-Kustomize descarga el chart de ArgoCD en:
-
-```
-bootstrapInfra/charts/
-```
-
-Puedes borrarlo:
+El paso correcto no es borrar artefactos temporales, sino aplicar el manifiesto raíz desde `selfDeploy`, porque ahí es donde se instala la aplicación de ArgoCD.
 
 ```bash
-rm -rf bootstrapInfra/charts/
+cd selfDeploy
+kubectl apply -f root.yaml
 ```
-
-Y está ignorado en `.gitignore`.
 
 ## 7. Obtener la contraseña inicial de ArgoCD
 
@@ -86,19 +79,23 @@ kubectl -n argocd get secret argocd-initial-admin-secret \
 
 Usuario:
 
-```
+```text
 admin
 ```
 
-## 8. Añadir entrada en el hosts de Windows
+## 8. Añadir el DNS de infraestructura al DHCP de la red
+
+El clúster despliega un **DNS de infraestructura** que resuelve los dominios internos de los servicios.
+
+Para que los equipos de la red puedan resolver estos nombres, hay que añadir la IP del DNS del clúster en la configuración **DHCP** del router o servidor DHCP.
+
+Ejemplo:
 
 ```
-192.168.1.70   argocd.local
+DNS primario:     192.168.1.1
+DNS secundario:   192.168.1.71   (DNS de infra del clúster)
 ```
 
-## 9. Acceder a ArgoCD
+También puede añadirse como **tercer servidor DNS** si ya existen dos configurados.
 
-```
-https://argocd.local
-```
-
+Una vez actualizado el DHCP, los clientes obtendrán automáticamente el DNS de infraestructura y podrán resolver los servicios del clúster.
