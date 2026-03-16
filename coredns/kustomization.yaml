@@ -9,7 +9,6 @@ resources:
 configMapGenerator:
   - name: coredns-config
     namespace: dns
-    behavior: replace
     literals: []
     files:
       - Corefile=Corefile
