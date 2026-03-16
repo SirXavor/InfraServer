@@ -4,4 +4,5 @@ kind: Kustomization
 resources:
   - provisioning.yaml
   - coredns.yaml
+  - root.yaml
 
