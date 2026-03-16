@@ -30,7 +30,7 @@ spec:
       volumes:
         - name: config
           configMap:
-            name: coredns
+            name: coredns-config
             items:
               - key: Corefile
                 path: Corefile

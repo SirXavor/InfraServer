@@ -3,6 +3,17 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - configmap.yaml
   - deployment.yaml
   - service.yaml
+
+configMapGenerator:
+  - name: coredns-config
+    namespace: dns
+    behavior: replace
+    literals: []
+    files:
+      - Corefile=Corefile
+      - hosts=hosts
+
+generatorOptions:
+  disableNameSuffixHash: false

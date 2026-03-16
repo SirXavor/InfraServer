@@ -1,0 +1,6 @@
+.:53 {
+    hosts /etc/coredns/hosts
+    forward . 192.168.1.16 1.1.1.1
+    cache 30
+    reload
+}
