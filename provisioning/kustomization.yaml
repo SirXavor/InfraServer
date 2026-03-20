@@ -9,7 +9,19 @@ configMapGenerator:
   - name: provisioning-configs
     namespace: provisioning
     files:
-      - kernel/configs/default.yaml
-      - kernel/configs/aa-bb-cc-dd-ee-ff.yaml
+      # Base configs
+      - kernel/configs/base/10-hardening-updates.yaml
+      - kernel/configs/base/20-hardening-antivirus.yaml
+      - kernel/configs/base/30-hardening-bloqueo-cuentas.yaml
+      - kernel/configs/base/40-hardening-bloqueo-dispositivos.yaml
+      - kernel/configs/base/50-hardening-crypto.yaml
+
+      # Hosts
+      - kernel/configs/hosts/default.yaml
+      - kernel/configs/hosts/aa-bb-cc-dd-ee-ff.yaml
+
+      # Profiles
+      - kernel/configs/profiles/k3s-single-node/00-k3s.yaml
+
 generatorOptions:
   disableNameSuffixHash: true

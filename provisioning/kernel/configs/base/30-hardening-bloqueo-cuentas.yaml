@@ -1,0 +1,35 @@
+#cloud-config
+
+write_files:
+  - path: /etc/security/faillock.conf
+    owner: root:root
+    permissions: '0644'
+    append: true
+    content: |
+      # CCN-STIC-610 - Bloqueo de cuentas
+      deny = 3
+      unlock_time = 0
+      fail_interval = 1800
+      # even_deny_root deshabilitado (seguro)
+      admin_group = wheel
+
+runcmd:
+  # Asegurar que faillock.conf existe
+  - touch /etc/security/faillock.conf
+
+  # Resetear bloqueos actuales
+  - |
+      if command -v faillock >/dev/null 2>&1; then
+        faillock --reset || true
+        faillock --user root --reset || true
+      fi
+
+  # Limpiar directorio de bloqueos
+  - rm -rf /run/faillock/* || true
+
+  # Comprobación opcional de presencia de pam_faillock (no modifica nada)
+  - |
+      for f in /etc/pam.d/system-login /etc/pam.d/system-local-login /etc/pam.d/system-remote-login; do
+        [ -f "$f" ] || continue
+        grep -q 'pam_faillock\.so' "$f" || echo "Advertencia: $f no contiene pam_faillock"
+      done

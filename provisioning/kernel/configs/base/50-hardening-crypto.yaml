@@ -1,0 +1,123 @@
+#cloud-config
+
+write_files: []
+
+runcmd:
+  - |
+      #!/bin/bash
+      set -euo pipefail
+
+      SECLVL=${SECLVL:-2}
+      MIN_TLS=${MIN_TLS:-TLSv1.2}
+      GNUTLS_PROFILE=${GNUTLS_PROFILE:-"SECURE128:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1"}
+
+      OPENSSL_CNF=/etc/ssl/openssl.cnf
+      GNUTLS_PRI=/etc/gnutls/default-priorities
+      SSHD_CFG=/etc/ssh/sshd_config
+
+      # --- OpenSSL hardening ---
+      if [ -f "$OPENSSL_CNF" ]; then
+        cp -f "$OPENSSL_CNF" "${OPENSSL_CNF}.bak_$(date +%F_%H%M%S)" || true
+
+        if ! grep -q '^openssl_conf\s*=\s*default_conf' "$OPENSSL_CNF" 2>/dev/null; then
+          printf '\nopenssl_conf = default_conf\n' >> "$OPENSSL_CNF"
+        fi
+        if ! grep -q '^
+
+\[ *default_conf *\]
+
+' "$OPENSSL_CNF"; then
+          printf '\n[ default_conf ]\nssl_conf = ssl_sect\n' >> "$OPENSSL_CNF"
+        elif ! grep -q '^ssl_conf\s*=\s*ssl_sect' "$OPENSSL_CNF"; then
+          sed -i -E 's/^
+
+\[ *default_conf *\]
+
+.*/[ default_conf ]\nssl_conf = ssl_sect/' "$OPENSSL_CNF"
+        fi
+        if ! grep -q '^
+
+\[ *ssl_sect *\]
+
+' "$OPENSSL_CNF"; then
+          printf '\n[ ssl_sect ]\nsystem_default = system_default_sect\n' >> "$OPENSSL_CNF"
+        elif ! grep -q '^system_default\s*=\s*system_default_sect' "$OPENSSL_CNF"; then
+          sed -i -E 's/^
+
+\[ *ssl_sect *\]
+
+.*/[ ssl_sect ]\nsystem_default = system_default_sect/' "$OPENSSL_CNF"
+        fi
+
+        if grep -q '^
+
+\[ *system_default_sect *\]
+
+' "$OPENSSL_CNF"; then
+          sed -i -E "\|^
+
+\[ *system_default_sect *\]
+
+|,$ s/^MinProtocol.*/MinProtocol = ${MIN_TLS}/" "$OPENSSL_CNF" || true
+          sed -i -E "\|^
+
+\[ *system_default_sect *\]
+
+|,$ s/^CipherString.*/CipherString = DEFAULT@SECLEVEL=${SECLVL}/" "$OPENSSL_CNF" || true
+          awk -v mt="${MIN_TLS}" -v slv="${SECLVL}" '
+            BEGIN{insec=0; min=0; cs=0}
+            /^
+
+\[ *system_default_sect *\]
+
+/{print; insec=1; next}
+            insec==1 && /^MinProtocol/{min=1}
+            insec==1 && /^CipherString/{cs=1}
+            {print}
+            END{
+              if(!min || !cs){
+                print "MinProtocol = " mt
+                print "CipherString = DEFAULT@SECLEVEL=" slv
+              }
+            }
+          ' "$OPENSSL_CNF" >"$OPENSSL_CNF.tmp" && mv "$OPENSSL_CNF.tmp" "$OPENSSL_CNF"
+        else
+          cat >> "$OPENSSL_CNF" <<EOF
+
+[ system_default_sect ]
+MinProtocol = ${MIN_TLS}
+CipherString = DEFAULT@SECLEVEL=${SECLVL}
+EOF
+        fi
+      fi
+
+      # --- GnuTLS hardening ---
+      install -d -m 0755 "$(dirname "$GNUTLS_PRI")"
+      cp -f "$GNUTLS_PRI" "${GNUTLS_PRI}.bak_$(date +%F_%H%M%S)" 2>/dev/null || true
+      printf '%s\n' "$GNUTLS_PROFILE" > "$GNUTLS_PRI"
+      chmod 0644 "$GNUTLS_PRI"
+
+      # --- OpenSSH hardening ---
+      if [ -f "$SSHD_CFG" ]; then
+        cp -f "$SSHD_CFG" "${SSHD_CFG}.bak_$(date +%F_%H%M%S)" || true
+
+        ensure() {
+          local key="$1" val="$2"
+          if grep -qE "^#?${key} " "$SSHD_CFG"; then
+            sed -i -E "s/^#?${key} .*/${key} ${val}/" "$SSHD_CFG"
+          else
+            echo "${key} ${val}" >> "$SSHD_CFG"
+          fi
+        }
+
+        ensure KexAlgorithms 'curve25519-sha256,curve25519-sha256@libssh.org'
+        ensure Ciphers 'chacha20-poly1305@openssh.com,aes256-gcm@openssh.com,aes256-ctr'
+        ensure MACs 'hmac-sha2-512-etm@openssh.com,hmac-sha2-256-etm@openssh.com'
+        ensure CASignatureAlgorithms 'rsa-sha2-512,rsa-sha2-256'
+
+        if sshd -t; then
+          systemctl restart ssh || systemctl restart sshd || exit 1
+        else
+          exit 1
+        fi
+      fi

@@ -1,0 +1,19 @@
+#cloud-config
+
+write_files:
+  - path: /usr/local/sbin/auto_update.sh
+    permissions: '0755'
+    owner: root:root
+    content: |
+      #!/bin/bash
+      apt update -y
+      apt upgrade -y
+
+  - path: /etc/cron.d/ccn_actualizacion
+    permissions: '0644'
+    owner: root:root
+    content: |
+      0 7 */15 * * root /usr/local/sbin/auto_update.sh
+
+runcmd:
+  - systemctl enable --now cron
