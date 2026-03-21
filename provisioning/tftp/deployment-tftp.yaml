@@ -13,11 +13,12 @@ spec:
       labels:
         app: tftp-provisioning
     spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: tftp-provisioning
-        image: xavor/tftp-provisioning:1.0
+        image: xavor/tftp-provisioning:2.0
         ports:
         - name: tftp
           containerPort: 69
-          hostPort: 69
           protocol: UDP
