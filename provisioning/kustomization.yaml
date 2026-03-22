@@ -3,6 +3,8 @@ resources:
   - kernel/deployment-kernel.yaml
   - kernel/service-kernel.yaml
   - kernel/ingress.yaml
+  - kernel/pvc-iso.yaml
+  - kernel/job-download.yaml
   - tftp/deployment-tftp.yaml
 
 configMapGenerator:

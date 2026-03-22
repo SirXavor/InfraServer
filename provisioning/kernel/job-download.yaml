@@ -1,0 +1,34 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: download-ubuntu-iso
+  namespace: provisioning
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: downloader
+          image: curlimages/curl:latest
+          command:
+            - sh
+            - -c
+            - |
+              TARGET="/iso/ubuntu-24.04.2-live-server-amd64.iso"
+              if [ -f "$TARGET" ]; then
+                echo "ISO ya existe, nada que hacer."
+                exit 0
+              fi
+              echo "Descargando ISO..."
+              curl -L --retry 5 --retry-delay 10 \
+                -o "$TARGET" \
+                https://releases.ubuntu.com/24.04/ubuntu-24.04.2-live-server-amd64.iso
+              echo "Descarga completada."
+          volumeMounts:
+            - name: iso-storage
+              mountPath: /iso
+      volumes:
+        - name: iso-storage
+          persistentVolumeClaim:
+            claimName: ubuntu-iso
