@@ -18,9 +18,6 @@ spec:
       containers:
         - name: dnsmasq
           image: xavor/dnsmasq-proxy:1.0
-          args:
-            - --keep-in-foreground
-            - --conf-file=/etc/dnsmasq/dnsmasq.conf
           securityContext:
             capabilities:
               add:
