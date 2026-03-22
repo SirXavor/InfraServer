@@ -17,7 +17,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
         - name: dnsmasq
-          image: ghcr.io/poseidon/dnsmasq:latest
+          image: xavor/dnsmasq-proxy:1.0
           args:
             - --keep-in-foreground
             - --conf-file=/etc/dnsmasq/dnsmasq.conf
