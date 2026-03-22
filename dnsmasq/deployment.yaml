@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dnsmasq-proxy
+  namespace: dnsmasq
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: dnsmasq-proxy
+  template:
+    metadata:
+      labels:
+        app: dnsmasq-proxy
+    spec:
+      hostNetwork: true
+      dnsPolicy: ClusterFirstWithHostNet
+      containers:
+        - name: dnsmasq
+          image: ghcr.io/poseidon/dnsmasq:latest
+          args:
+            - --keep-in-foreground
+            - --conf-file=/etc/dnsmasq/dnsmasq.conf
+          securityContext:
+            capabilities:
+              add:
+                - NET_ADMIN
+                - NET_RAW
+          volumeMounts:
+            - name: config
+              mountPath: /etc/dnsmasq
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: dnsmasq-proxy-config
