@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: tftp-provisioning
-  namespace: provisioning
+  namespace: tftp-provisioning
 spec:
   replicas: 1
   selector:
@@ -17,7 +17,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: tftp-provisioning
-        image: xavor/tftp-provisioning:2.0
+        image: xavor/tftp-provisioning:3.0
         ports:
         - name: tftp
           containerPort: 69

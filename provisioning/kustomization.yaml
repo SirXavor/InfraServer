@@ -1,29 +1,28 @@
 resources:
   - namespace.yaml
-  - kernel/deployment-kernel.yaml
-  - kernel/service-kernel.yaml
-  - kernel/ingress.yaml
-  - kernel/pvc-iso.yaml
-  - kernel/job-download.yaml
-  - tftp/deployment-tftp.yaml
+  - deployment-kernel.yaml
+  - service-kernel.yaml
+  - ingress.yaml
+  - pvc-iso.yaml
+  - job-download.yaml
 
 configMapGenerator:
   - name: provisioning-configs
     namespace: provisioning
     files:
       # Base configs
-      - kernel/configs/base/10-hardening-updates.yaml
-      - kernel/configs/base/20-hardening-antivirus.yaml
-      - kernel/configs/base/30-hardening-bloqueo-cuentas.yaml
-      - kernel/configs/base/40-hardening-bloqueo-dispositivos.yaml
-      - kernel/configs/base/50-hardening-crypto.yaml
+      - configs/base/10-hardening-updates.yaml
+      - configs/base/20-hardening-antivirus.yaml
+      - configs/base/30-hardening-bloqueo-cuentas.yaml
+      - configs/base/40-hardening-bloqueo-dispositivos.yaml
+      - configs/base/50-hardening-crypto.yaml
 
       # Hosts
-      - kernel/configs/hosts/default.yaml
-      - kernel/configs/hosts/aa-bb-cc-dd-ee-ff.yaml
+      - configs/hosts/default.yaml
+      - configs/hosts/aa-bb-cc-dd-ee-ff.yaml
 
       # Profiles
-      - kernel/configs/profiles/k3s-single-node/00-k3s.yaml
+      - configs/profiles/k3s-single-node/00-k3s.yaml
 
 generatorOptions:
   disableNameSuffixHash: true
