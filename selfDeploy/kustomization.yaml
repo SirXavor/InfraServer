@@ -6,3 +6,4 @@ resources:
   - coredns.yaml
   - root.yaml
   - dnsmasq.yaml
+  - tftp-provisioning.yaml
