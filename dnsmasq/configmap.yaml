@@ -11,21 +11,17 @@ data:
 
     dhcp-range=192.168.1.0,proxy
 
-    # Segunda pasada: iPXE ya corriendo
+    # Segunda pasada: iPXE ya corriendo → darle el script HTTP
     dhcp-userclass=set:ipxe,iPXE
     dhcp-boot=tag:ipxe,http://boot.local/ipxe/menu.ipxe
 
-    # Primera pasada: detectar arquitectura
+    # Primera pasada: solo si NO es iPXE ya corriendo
     dhcp-match=set:efi-x86_64,option:client-arch,7
     dhcp-match=set:bios,option:client-arch,0
 
-    # UEFI: servir ipxe.efi
-    dhcp-boot=tag:efi-x86_64,ipxe.efi,,192.168.1.70
+    dhcp-boot=tag:efi-x86_64,tag:!ipxe,ipxe.efi,,192.168.1.70
+    dhcp-boot=tag:bios,tag:!ipxe,undionly.kpxe,,192.168.1.70
 
-    # BIOS: servir undionly.kpxe  
-    dhcp-boot=tag:bios,undionly.kpxe,,192.168.1.70
-
-    # Forzar next-server
     dhcp-option=66,192.168.1.70
 
     interface=enp2s0
