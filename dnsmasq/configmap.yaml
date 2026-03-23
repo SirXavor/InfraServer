@@ -9,21 +9,26 @@ data:
     log-dhcp
     log-facility=-
 
-    # Modo proxy: no asigna IPs, solo opciones PXE
     dhcp-range=192.168.1.0,proxy
 
-    # ── Prioridad 1: iPXE ya está corriendo ──────────────────────────────
-    # Detectar la segunda pasada de iPXE y darle el script HTTP directamente
+    # Segunda pasada: iPXE ya corriendo
     dhcp-userclass=set:ipxe,iPXE
-    dhcp-boot=tag:ipxe,http://192.168.1.70/ipxe/menu.ipxe
+    dhcp-boot=tag:ipxe,http://boot.local/ipxe/menu.ipxe
 
-    # ── Prioridad 2: arranque inicial, detectar arquitectura ─────────────
+    # Primera pasada: detectar arquitectura
     dhcp-match=set:efi-x86_64,option:client-arch,7
-    dhcp-boot=tag:efi-x86_64,ipxe.efi,,192.168.1.70
-    dhcp-boot=tag:!efi-x86_64,undionly.kpxe,,192.168.1.70
+    dhcp-match=set:bios,option:client-arch,0
 
-    # next-server explícito (redundante con lo anterior, pero no hace daño)
-    dhcp-option=option:tftp-server,192.168.1.70
+    # UEFI: servir ipxe.efi
+    dhcp-boot=tag:efi-x86_64,ipxe.efi,,192.168.1.70
+
+    # BIOS: servir undionly.kpxe  
+    dhcp-boot=tag:bios,undionly.kpxe,,192.168.1.70
+
+    # Forzar next-server
+    dhcp-option=66,192.168.1.70
 
     interface=enp2s0
     bind-interfaces
+    pxe-service=x86PC,"Boot BIOS",undionly.kpxe,192.168.1.70
+    pxe-service=X86-64_EFI,"Boot UEFI",ipxe.efi,192.168.1.70
