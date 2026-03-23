@@ -15,7 +15,6 @@ configMapGenerator:
       - configs/base/20-hardening-antivirus.yaml
       - configs/base/30-hardening-bloqueo-cuentas.yaml
       - configs/base/40-hardening-bloqueo-dispositivos.yaml
-      - configs/base/50-hardening-crypto.yaml
 
       # Hosts
       - configs/hosts/default.yaml
