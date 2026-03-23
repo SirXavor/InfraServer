@@ -11,23 +11,11 @@ data:
 
     dhcp-range=192.168.1.0,proxy
 
-    # Detectar arquitectura
     dhcp-match=set:efi-x86_64,option:client-arch,7
     dhcp-match=set:bios,option:client-arch,0
 
-    # Detectar iPXE ya corriendo
-    dhcp-userclass=set:ipxe,iPXE
-
-    # pxe-service necesario para responder en modo proxy
     pxe-service=x86PC,"Boot BIOS",undionly.kpxe,192.168.1.70
     pxe-service=X86-64_EFI,"Boot UEFI",ipxe.efi,192.168.1.70
-
-    # Primera pasada: binarios iPXE por arquitectura
-    dhcp-boot=tag:efi-x86_64,tag:!ipxe,ipxe.efi,,192.168.1.70
-    dhcp-boot=tag:bios,tag:!ipxe,undionly.kpxe,,192.168.1.70
-
-    # Tercera pasada: iPXE ya corriendo → script HTTP (va al final para tener prioridad)
-    dhcp-boot=tag:ipxe,http://boot.local/ipxe/menu.ipxe
 
     interface=enp2s0
     bind-interfaces
