@@ -1,0 +1,21 @@
+autoinstall:
+  version: 1
+  locale: es_ES.UTF-8
+  keyboard:
+    layout: es
+  identity:
+    hostname: ubuntu-server
+    username: xavor
+    password: '$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA.'
+  ssh:
+    install-server: true
+    authorized-keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEGjQLANlWCgoyQ5a2IO2TgcD5pIH5wPW55RXYlKlUAd Xavier@casa
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII1BmJqTSExkz9tUSdjAlfqMXyBzEzmgsy6RbQ6RCiK0 Xavor@Tader
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFBglC0K5nuwx+DU8TcvEkrvQLRyY01hmTlZWTNka3qc Portatil Xavier
+    allow-pw: true
+  storage:
+    layout:
+      name: direct
+  user-data:
+    timezone: Europe/Madrid
