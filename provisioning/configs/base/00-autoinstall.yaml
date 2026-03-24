@@ -1,5 +1,8 @@
 autoinstall:
   version: 1
+  early-commands:
+    - echo "AUTOINSTALL OK" > /run/autoinstall-reached
+    - sleep 15
   locale: es_ES.UTF-8
   keyboard:
     layout: es
