@@ -1,69 +1,62 @@
-#cloud-config
+autoinstall:
+  user-data:
+    packages:
+      - clamav
+      - clamav-daemon
+      - clamav-freshclam
 
-package_update: true
-package_upgrade: false
+    write_files:
+      - path: /etc/ssl/openssl.cnf
+        owner: root:root
+        permissions: '0644'
+        append: true
+        content: |
+          # CCN-STIC-610 policy (auto-managed)
+          MinProtocol = TLSv1.2
+          CipherString = DEFAULT:@SECLEVEL=2
 
-packages:
-  - clamav
-  - clamav-daemon
-  - clamav-freshclam
+      - path: /opt/clamav/clamav_scan.sh
+        owner: root:root
+        permissions: '0755'
+        content: |
+          #!/bin/bash
+          LOGFILE="/var/log/clamav/scan-$(date +%F).log"
+          if command -v clamdscan >/dev/null 2>&1; then
+            clamdscan -l "$LOGFILE" --fdpass --exclude-dir="^/sys" --exclude-dir="^/proc" --exclude-dir="^/dev" /
+          else
+            clamscan -r -i --exclude-dir="^/sys" --exclude-dir="^/proc" --exclude-dir="^/dev" / > "$LOGFILE"
+          fi
+          find /var/log/clamav/ -type f -name "scan-*.log" -mtime +15 -delete 2>/dev/null || true
 
-write_files:
-  # Política OpenSSL modificada por el script original
-  - path: /etc/ssl/openssl.cnf
-    owner: root:root
-    permissions: '0644'
-    append: true
-    content: |
-      # CCN-STIC-610 policy (auto-managed)
-      MinProtocol = TLSv1.2
-      CipherString = DEFAULT:@SECLEVEL=2
+      - path: /etc/systemd/system/clamav-scan.service
+        owner: root:root
+        permissions: '0644'
+        content: |
+          [Unit]
+          Description=Escaneo antivirus diario con ClamAV
 
-  # Script de escaneo diario
-  - path: /opt/clamav/clamav_scan.sh
-    owner: root:root
-    permissions: '0755'
-    content: |
-      #!/bin/bash
-      LOGFILE="/var/log/clamav/scan-$(date +%F).log"
-      if command -v clamdscan >/dev/null 2>&1; then
-        clamdscan -l "$LOGFILE" --fdpass --exclude-dir="^/sys" --exclude-dir="^/proc" --exclude-dir="^/dev" /
-      else
-        clamscan -r -i --exclude-dir="^/sys" --exclude-dir="^/proc" --exclude-dir="^/dev" / > "$LOGFILE"
-      fi
-      find /var/log/clamav/ -type f -name "scan-*.log" -mtime +15 -delete 2>/dev/null || true
+          [Service]
+          Type=oneshot
+          ExecStart=/opt/clamav/clamav_scan.sh
 
-  # Unidad systemd del servicio de escaneo
-  - path: /etc/systemd/system/clamav-scan.service
-    owner: root:root
-    permissions: '0644'
-    content: |
-      [Unit]
-      Description=Escaneo antivirus diario con ClamAV
+      - path: /etc/systemd/system/clamav-scan.timer
+        owner: root:root
+        permissions: '0644'
+        content: |
+          [Unit]
+          Description=Temporizador diario para ClamAV
 
-      [Service]
-      Type=oneshot
-      ExecStart=/opt/clamav/clamav_scan.sh
+          [Timer]
+          OnCalendar=daily
+          Persistent=true
 
-  # Timer diario
-  - path: /etc/systemd/system/clamav-scan.timer
-    owner: root:root
-    permissions: '0644'
-    content: |
-      [Unit]
-      Description=Temporizador diario para ClamAV
+          [Install]
+          WantedBy=timers.target
 
-      [Timer]
-      OnCalendar=daily
-      Persistent=true
-
-      [Install]
-      WantedBy=timers.target
-
-runcmd:
-  - mkdir -p /var/log/clamav /var/run/clamav /opt/clamav
-  - chown clamav:clamav /var/log/clamav /var/run/clamav
-  - systemctl enable --now clamav-freshclam.service
-  - systemctl enable --now clamav-daemon.service
-  - systemctl daemon-reload
-  - systemctl enable --now clamav-scan.timer
+    runcmd:
+      - mkdir -p /var/log/clamav /var/run/clamav /opt/clamav
+      - chown clamav:clamav /var/log/clamav /var/run/clamav
+      - systemctl enable --now clamav-freshclam.service
+      - systemctl enable --now clamav-daemon.service
+      - systemctl daemon-reload
+      - systemctl enable --now clamav-scan.timer

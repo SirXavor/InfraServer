@@ -1,18 +1,17 @@
-packages:
-  - curl
+autoinstall:
+  user-data:
+    packages:
+      - curl
 
-runcmd:
-  # 1. Instalar K3s sin Traefik ni ServiceLB
-  - |
-    curl -sfL https://get.k3s.io | \
-      INSTALL_K3S_EXEC="--disable traefik --disable servicelb --write-kubeconfig-mode=644" \
-      sh -
+    runcmd:
+      - |
+        curl -sfL https://get.k3s.io | \
+          INSTALL_K3S_EXEC="--disable traefik --disable servicelb --write-kubeconfig-mode=644" \
+          sh -
 
-  # 2. Quitar taints del nodo (para que pueda ejecutar pods)
-  - "kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true"
-  - "kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true"
+      - kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
+      - kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true
 
-  # 3. Instalar Kustomize
-  - |
-    curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
-    mv kustomize /usr/local/bin/
+      - |
+        curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
+        mv kustomize /usr/local/bin/

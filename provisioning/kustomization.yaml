@@ -10,18 +10,15 @@ configMapGenerator:
   - name: provisioning-configs
     namespace: provisioning
     files:
-      # Base configs
       - configs/base/00-autoinstall.yaml
       - configs/base/10-hardening-updates.yaml
       - configs/base/20-hardening-antivirus.yaml
       - configs/base/30-hardening-bloqueo-cuentas.yaml
       - configs/base/40-hardening-bloqueo-dispositivos.yaml
 
-      # Hosts
       - configs/hosts/default.yaml
       - configs/hosts/aa-bb-cc-dd-ee-ff.yaml
 
-      # Profiles
       - configs/profiles/k3s-single-node/00-k3s.yaml
 
 generatorOptions:

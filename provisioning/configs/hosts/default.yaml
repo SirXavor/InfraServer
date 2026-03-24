@@ -1,2 +1,3 @@
-#cloud-config
-hostname: default-node
+autoinstall:
+  identity:
+    hostname: default-node

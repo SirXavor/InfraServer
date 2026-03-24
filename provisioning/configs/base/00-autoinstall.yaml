@@ -19,3 +19,5 @@ autoinstall:
       name: direct
   user-data:
     timezone: Europe/Madrid
+    package_update: true
+    package_upgrade: false

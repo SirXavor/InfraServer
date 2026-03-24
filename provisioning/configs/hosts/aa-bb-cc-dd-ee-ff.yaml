@@ -1,3 +1,6 @@
-profile: k3s-single-node
+profiles:
+  - k3s-single-node
 
-hostname: k3s-master
+autoinstall:
+  identity:
+    hostname: k3s-master
