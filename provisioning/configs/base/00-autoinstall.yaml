@@ -20,6 +20,16 @@ autoinstall:
   storage:
     layout:
       name: direct
+  late-commands:
+    - |
+      MAC=$(cat /sys/class/net/$(ip route show default | awk '/default/ {print $5}' | head -1)/address | tr ':' '-')
+      mkdir -p /target/etc/cloud/cloud.cfg.d
+      cat > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg << EOF
+      datasource_list: [NoCloud]
+      datasource:
+        NoCloud:
+          seedfrom: http://boot.local/ds/${MAC}/
+      EOF
   user-data:
     timezone: Europe/Madrid
     package_update: true
