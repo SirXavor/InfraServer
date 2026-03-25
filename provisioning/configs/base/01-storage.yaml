@@ -14,7 +14,7 @@ autoinstall:
         type: partition
         device: disk-sda
         size: 512M
-        flag: boot
+        flag: esp
 
       - id: part-boot
         type: partition
