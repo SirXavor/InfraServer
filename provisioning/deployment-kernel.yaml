@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
       - name: kernel-provisioning
-        image: xavor/kernel-provisioning:2.7
+        image: xavor/kernel-provisioning:2.8
         ports:
         - name: http
           containerPort: 80
