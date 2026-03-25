@@ -15,6 +15,7 @@ autoinstall:
         device: disk-sda
         size: 512M
         flag: esp
+        grub_device: true
 
       - id: part-boot
         type: partition
