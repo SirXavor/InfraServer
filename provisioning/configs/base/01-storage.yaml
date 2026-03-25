@@ -52,43 +52,43 @@ autoinstall:
       - id: lv-root
         type: lvm_partition
         name: lv_root
-        volgroup: vg_system
+        volgroup: vg-system
         size: 30G
 
       - id: lv-varlog
         type: lvm_partition
         name: lv_varlog
-        volgroup: vg_system
+        volgroup: vg-system
         size: 10G
 
       - id: lv-tmp
         type: lvm_partition
         name: lv_tmp
-        volgroup: vg_system
+        volgroup: vg-system
         size: 8G
 
       - id: lv-vartmp
         type: lvm_partition
         name: lv_vartmp
-        volgroup: vg_system
+        volgroup: vg-system
         size: 8G
 
       - id: lv-home
         type: lvm_partition
         name: lv_home
-        volgroup: vg_system
+        volgroup: vg-system
         size: 10G
 
       - id: lv-swap
         type: lvm_partition
         name: lv_swap
-        volgroup: vg_system
+        volgroup: vg-system
         size: 8G
 
       - id: lv-var
         type: lvm_partition
         name: lv_var
-        volgroup: vg_system
+        volgroup: vg-system
         size: -1
 
       - id: fs-root
