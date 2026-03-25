@@ -1,0 +1,167 @@
+autoinstall:
+  version: 1
+
+  storage:
+    config:
+      - id: disk-sda
+        type: disk
+        path: /dev/sda
+        ptable: gpt
+        wipe: superblock-recursive
+        grub_device: true
+
+      - id: part-efi
+        type: partition
+        device: disk-sda
+        size: 512M
+        flag: boot
+
+      - id: part-boot
+        type: partition
+        device: disk-sda
+        size: 2G
+
+      - id: part-root-crypt
+        type: partition
+        device: disk-sda
+        size: -1
+
+      - id: fs-efi
+        type: format
+        volume: part-efi
+        fstype: fat32
+
+      - id: fs-boot
+        type: format
+        volume: part-boot
+        fstype: ext4
+
+      - id: luks-root
+        type: dm_crypt
+        volume: part-root-crypt
+        key: "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+        cipher: aes-xts-plain64
+        keysize: 512
+
+      - id: vg-system
+        type: lvm_volgroup
+        name: vg_system
+        devices:
+          - luks-root
+
+      - id: lv-root
+        type: lvm_partition
+        name: lv_root
+        volgroup: vg_system
+        size: 30G
+
+      - id: lv-varlog
+        type: lvm_partition
+        name: lv_varlog
+        volgroup: vg_system
+        size: 10G
+
+      - id: lv-tmp
+        type: lvm_partition
+        name: lv_tmp
+        volgroup: vg_system
+        size: 8G
+
+      - id: lv-vartmp
+        type: lvm_partition
+        name: lv_vartmp
+        volgroup: vg_system
+        size: 8G
+
+      - id: lv-home
+        type: lvm_partition
+        name: lv_home
+        volgroup: vg_system
+        size: 10G
+
+      - id: lv-swap
+        type: lvm_partition
+        name: lv_swap
+        volgroup: vg_system
+        size: 8G
+
+      - id: lv-var
+        type: lvm_partition
+        name: lv_var
+        volgroup: vg_system
+        size: -1
+
+      - id: fs-root
+        type: format
+        volume: lv-root
+        fstype: ext4
+
+      - id: fs-varlog
+        type: format
+        volume: lv-varlog
+        fstype: ext4
+
+      - id: fs-tmp
+        type: format
+        volume: lv-tmp
+        fstype: ext4
+
+      - id: fs-vartmp
+        type: format
+        volume: lv-vartmp
+        fstype: ext4
+
+      - id: fs-home
+        type: format
+        volume: lv-home
+        fstype: ext4
+
+      - id: fs-swap
+        type: format
+        volume: lv-swap
+        fstype: swap
+
+      - id: fs-var
+        type: format
+        volume: lv-var
+        fstype: ext4
+
+      - id: mnt-efi
+        type: mount
+        device: fs-efi
+        path: /boot/efi
+
+      - id: mnt-boot
+        type: mount
+        device: fs-boot
+        path: /boot
+
+      - id: mnt-root
+        type: mount
+        device: fs-root
+        path: /
+
+      - id: mnt-varlog
+        type: mount
+        device: fs-varlog
+        path: /var/log
+
+      - id: mnt-tmp
+        type: mount
+        device: fs-tmp
+        path: /tmp
+
+      - id: mnt-vartmp
+        type: mount
+        device: fs-vartmp
+        path: /var/tmp
+
+      - id: mnt-home
+        type: mount
+        device: fs-home
+        path: /home
+
+      - id: mnt-var
+        type: mount
+        device: fs-var
+        path: /var

@@ -14,9 +14,16 @@ autoinstall:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII1BmJqTSExkz9tUSdjAlfqMXyBzEzmgsy6RbQ6RCiK0 Xavor@Tader
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFBglC0K5nuwx+DU8TcvEkrvQLRyY01hmTlZWTNka3qc Portatil Xavier
     allow-pw: true
-  storage:
-    layout:
-      name: direct
+  packages:
+    - python3
+    - python3-apt
+    - openssh-server
+    - curl
+    - vim
+    - sudo
+    - ca-certificates
+    - ansible
+    - git
   late-commands:
     - |
       MAC=$(cat /sys/class/net/$(ip route show default | awk '/default/ {print $5}' | head -1)/address | tr ':' '-')
