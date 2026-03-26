@@ -1,13 +1,6 @@
 autoinstall:
   version: 1
 
-  packages:
-    - clevis
-    - clevis-initramfs
-    - clevis-luks
-    - clevis-tpm2
-    - tpm2-tools
-
   storage:
     config:
       - id: disk-sda
@@ -175,6 +168,13 @@ autoinstall:
         path: /var
 
   late-commands:
+    - |
+      curtin in-target --target=/target -- bash -c '
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
+      '
+
     # 1. Dejar crypttab bien y regenerar initramfs inicial
     - |
       curtin in-target --target=/target -- bash -c '

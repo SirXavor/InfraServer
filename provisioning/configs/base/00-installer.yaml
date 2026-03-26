@@ -43,7 +43,13 @@ autoinstall:
       fi
 
     - curtin in-target --target=/target -- apt-get update || true
-    - curtin in-target --target=/target -- apt-get install -y ansible git || true
+
+    - |
+      curtin in-target --target=/target -- bash -c '
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y python3 python3-apt curl vim sudo git ansible
+      '
 
   user-data:
     timezone: Europe/Madrid
