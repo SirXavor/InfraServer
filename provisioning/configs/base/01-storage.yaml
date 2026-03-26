@@ -1,3 +1,4 @@
+# provisioning/configs/base/01-storage.yaml
 autoinstall:
   version: 1
 
@@ -168,96 +169,48 @@ autoinstall:
         path: /var
 
   late-commands:
+    # 1. Instalar clevis y dependencias en el sistema target
+    - |
+      curtin in-target --target=/target -- /bin/bash -c '
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update -qq
+      apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
+      '
+
+    # 2. Hacer el bind LUKS->TPM desde el host del instalador
+    #    En este punto /dev/sda3 ya está abierta por el instalador y el TPM es accesible
+    - |
+      /bin/bash -c '
+      LUKS_DEV="/dev/sda3"
+      PASSPHRASE="infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+
+      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+        echo "[WARN] No hay TPM disponible, se omite el bind"
+        exit 0
+      fi
+
+      echo "[INFO] Limpiando lockout del TPM..."
+      tpm2_dictionarylockout --clear-lockout || true
+
+      TMPKEY=$(mktemp)
+      trap "rm -f $TMPKEY" EXIT
+      printf "%s" "$PASSPHRASE" > "$TMPKEY"
+      chmod 600 "$TMPKEY"
+
+      echo "[INFO] Asociando LUKS al TPM2 con PCR 0,7..."
+      clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
+      echo "[INFO] Bind completado correctamente"
+      '
+
+    # 3. Actualizar crypttab en el target
     - |
       curtin in-target --target=/target -- /bin/bash -c '
       UUID=$(blkid -s UUID -o value /dev/sda3)
       echo "luks-root UUID=$UUID none luks" > /etc/crypttab
+      '
+
+    # 4. Regenerar initramfs con clevis ya integrado
+    - |
+      curtin in-target --target=/target -- /bin/bash -c '
       update-initramfs -u -k all
-      '
-
-    - |
-      curtin in-target --target=/target -- /bin/bash -c '
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
-      '
-
-    - |
-      curtin in-target --target=/target -- /bin/bash -c '
-      cat >/usr/local/sbin/bind-luks-tpm.sh <<'"'"'EOF'"'"'
-      #!/bin/bash
-      set -euo pipefail
-
-      LUKS_DEV="/dev/sda3"
-      PASSPHRASE="infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
-      MARKER="/etc/clevis-tpm-bound"
-
-      echo "[INFO] Inicio bind LUKS->TPM"
-
-      if [ -f "$MARKER" ]; then
-        echo "[INFO] Ya configurado anteriormente"
-        exit 0
-      fi
-
-      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
-        echo "[INFO] No hay TPM disponible, se omite bind"
-        exit 0
-      fi
-
-      if [ ! -b "$LUKS_DEV" ]; then
-        echo "[ERROR] No existe el dispositivo LUKS"
-        exit 1
-      fi
-
-      if ! cryptsetup isLuks "$LUKS_DEV"; then
-        echo "[ERROR] El dispositivo indicado no es LUKS"
-        exit 1
-      fi
-
-      if cryptsetup luksDump "$LUKS_DEV" | grep -qi clevis; then
-        echo "[INFO] Ya existe token clevis en el volumen"
-        touch "$MARKER"
-        update-initramfs -u -k all
-        exit 0
-      fi
-
-      TMPKEY=$(mktemp)
-      trap '"'"'rm -f "$TMPKEY"'"'"' EXIT
-
-      printf "%s" "$PASSPHRASE" > "$TMPKEY"
-      chmod 600 "$TMPKEY"
-
-      echo "[INFO] Asociando LUKS al TPM2..."
-      tpm2_dictionarylockout --clear-lockout || true
-      clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
-
-      echo "[INFO] Regenerando initramfs..."
-      update-initramfs -u -k all
-
-      touch "$MARKER"
-      systemctl disable bind-luks-tpm.service || true
-
-      echo "[INFO] Bind completado correctamente"
-      EOF
-
-      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
-      '
-
-    - |
-      curtin in-target --target=/target -- /bin/bash -c '
-      cat >/etc/systemd/system/bind-luks-tpm.service <<'"'"'EOF'"'"'
-      [Unit]
-      Description=Asociar LUKS root al TPM2 en el primer arranque
-      After=multi-user.target
-
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/sbin/bind-luks-tpm.sh
-      RemainAfterExit=yes
-
-      [Install]
-      WantedBy=multi-user.target
-      EOF
-
-      systemctl enable bind-luks-tpm.service
       '
