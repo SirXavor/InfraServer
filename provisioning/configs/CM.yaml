@@ -1,0 +1,384 @@
+apiVersion: v1
+data:
+  00-installer.yaml: |
+    autoinstall:
+      version: 1
+      locale: es_ES.UTF-8
+
+      keyboard:
+        layout: es
+
+      identity:
+        hostname: ubuntu-server
+        username: xavor
+        password: '$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA.'
+
+      ssh:
+        install-server: true
+        authorized-keys:
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEGjQLANlWCgoyQ5a2IO2TgcD5pIH5wPW55RXYlKlUAd Xavier@casa
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII1BmJqTSExkz9tUSdjAlfqMXyBzEzmgsy6RbQ6RCiK0 Xavor@Tader
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFBglC0K5nuwx+DU8TcvEkrvQLRyY01hmTlZWTNka3qc Portatil Xavier
+        allow-pw: true
+
+      packages:
+        - python3
+        - python3-apt
+        - openssh-server
+        - curl
+        - vim
+        - sudo
+        - ca-certificates
+        - git
+
+      late-commands:
+        - |
+          IFACE="$(ip route show default | awk '/default/ {print $5}' | head -1)"
+          if [ -n "$IFACE" ] && [ -e "/sys/class/net/$IFACE/address" ]; then
+            MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
+            mkdir -p /target/etc/cloud/cloud.cfg.d
+            printf '%s\n' \
+              'datasource_list: [NoCloud]' \
+              'datasource:' \
+              '  NoCloud:' \
+              "    seedfrom: http://boot.local/ds/${MAC}/" \
+              > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg
+          fi
+
+        - curtin in-target --target=/target -- apt-get update || true
+
+        - |
+          curtin in-target --target=/target -- bash -c '
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y python3 python3-apt curl vim sudo git ansible
+          '
+
+      user-data:
+        timezone: Europe/Madrid
+        package_update: true
+        package_upgrade: false
+  01-storage.yaml: |
+    autoinstall:
+      version: 1
+
+      storage:
+        config:
+          - id: disk-sda
+            type: disk
+            path: /dev/sda
+            ptable: gpt
+            wipe: superblock-recursive
+            grub_device: true
+
+          - id: part-efi
+            type: partition
+            device: disk-sda
+            size: 512M
+            flag: esp
+            grub_device: true
+
+          - id: part-boot
+            type: partition
+            device: disk-sda
+            size: 2G
+
+          - id: part-root-crypt
+            type: partition
+            device: disk-sda
+            size: -1
+
+          - id: fs-efi
+            type: format
+            volume: part-efi
+            fstype: fat32
+
+          - id: fs-boot
+            type: format
+            volume: part-boot
+            fstype: ext4
+
+          - id: luks-root
+            type: dm_crypt
+            volume: part-root-crypt
+            key: "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+            cipher: aes-xts-plain64
+            keysize: 512
+
+          - id: vg-system
+            type: lvm_volgroup
+            name: vg_system
+            devices:
+              - luks-root
+
+          - id: lv-root
+            type: lvm_partition
+            name: lv_root
+            volgroup: vg-system
+            size: 30G
+
+          - id: lv-varlog
+            type: lvm_partition
+            name: lv_varlog
+            volgroup: vg-system
+            size: 10G
+
+          - id: lv-tmp
+            type: lvm_partition
+            name: lv_tmp
+            volgroup: vg-system
+            size: 8G
+
+          - id: lv-vartmp
+            type: lvm_partition
+            name: lv_vartmp
+            volgroup: vg-system
+            size: 8G
+
+          - id: lv-home
+            type: lvm_partition
+            name: lv_home
+            volgroup: vg-system
+            size: 10G
+
+          - id: lv-swap
+            type: lvm_partition
+            name: lv_swap
+            volgroup: vg-system
+            size: 8G
+
+          - id: lv-var
+            type: lvm_partition
+            name: lv_var
+            volgroup: vg-system
+            size: -1
+
+          - id: fs-root
+            type: format
+            volume: lv-root
+            fstype: ext4
+
+          - id: fs-varlog
+            type: format
+            volume: lv-varlog
+            fstype: ext4
+
+          - id: fs-tmp
+            type: format
+            volume: lv-tmp
+            fstype: ext4
+
+          - id: fs-vartmp
+            type: format
+            volume: lv-vartmp
+            fstype: ext4
+
+          - id: fs-home
+            type: format
+            volume: lv-home
+            fstype: ext4
+
+          - id: fs-swap
+            type: format
+            volume: lv-swap
+            fstype: swap
+
+          - id: fs-var
+            type: format
+            volume: lv-var
+            fstype: ext4
+
+          - id: mnt-efi
+            type: mount
+            device: fs-efi
+            path: /boot/efi
+
+          - id: mnt-boot
+            type: mount
+            device: fs-boot
+            path: /boot
+
+          - id: mnt-root
+            type: mount
+            device: fs-root
+            path: /
+
+          - id: mnt-varlog
+            type: mount
+            device: fs-varlog
+            path: /var/log
+
+          - id: mnt-tmp
+            type: mount
+            device: fs-tmp
+            path: /tmp
+
+          - id: mnt-vartmp
+            type: mount
+            device: fs-vartmp
+            path: /var/tmp
+
+          - id: mnt-home
+            type: mount
+            device: fs-home
+            path: /home
+
+          - id: mnt-var
+            type: mount
+            device: fs-var
+            path: /var
+
+      late-commands:
+
+        # 1) Crear keyfile temporal dentro de /target
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          echo "[INFO] Creando keyfile temporal para LUKS..."
+          mkdir -p /etc/cryptsetup-keys.d
+          KEYFILE="/etc/cryptsetup-keys.d/root.key"
+          printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM" > "$KEYFILE"
+          chmod 600 "$KEYFILE"
+          '
+
+        # 2) Añadir keyfile como slot adicional en el LUKS
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          echo "[INFO] Añadiendo keyfile como slot temporal en LUKS..."
+          cryptsetup luksAddKey /dev/sda3 /etc/cryptsetup-keys.d/root.key --key-file <(printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM")
+          '
+
+        # 3) Configurar crypttab para usar el keyfile y regenerar initramfs
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          echo "[INFO] Configurando /etc/crypttab con keyfile..."
+          UUID=$(blkid -s UUID -o value /dev/sda3)
+          echo "luks-root UUID=$UUID /etc/cryptsetup-keys.d/root.key luks" > /etc/crypttab
+          update-initramfs -u -k all
+          '
+
+        # 4) Instalar clevis y herramientas TPM
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
+          '
+
+        # 5) Script de primer arranque: bind TPM + limpieza keyfile + regen initramfs
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          cat >/usr/local/sbin/bind-luks-tpm.sh <<'"'"'EOF'"'"'
+          #!/bin/bash
+          set -euo pipefail
+
+          LUKS_DEV="/dev/sda3"
+          KEYFILE="/etc/cryptsetup-keys.d/root.key"
+          MARKER="/etc/clevis-tpm-bound"
+          PASSPHRASE="infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+
+          echo "[INFO] Inicio bind LUKS->TPM"
+
+          if [ -f "$MARKER" ]; then
+            echo "[INFO] Ya configurado anteriormente"
+            exit 0
+          fi
+
+          if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+            echo "[INFO] No hay TPM disponible, se omite bind"
+            touch "$MARKER"
+            exit 0
+          fi
+
+          if [ ! -b "$LUKS_DEV" ]; then
+            echo "[ERROR] No existe el dispositivo LUKS"
+            exit 1
+          fi
+
+          if ! cryptsetup isLuks "$LUKS_DEV"; then
+            echo "[ERROR] El dispositivo indicado no es LUKS"
+            exit 1
+          fi
+
+          if cryptsetup luksDump "$LUKS_DEV" | grep -qi clevis; then
+            echo "[INFO] Ya existe token clevis en el volumen"
+            touch "$MARKER"
+            update-initramfs -u -k all
+            exit 0
+          fi
+
+          echo "[INFO] Realizando bind TPM2..."
+          TMPKEY=$(mktemp)
+          trap 'rm -f "$TMPKEY"' EXIT
+
+          printf "%s" "$PASSPHRASE" > "$TMPKEY"
+          chmod 600 "$TMPKEY"
+
+          tpm2_dictionarylockout --clear-lockout || true
+          clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
+
+          echo "[INFO] Eliminando keyfile temporal del LUKS (slot) y del disco..."
+          cryptsetup luksRemoveKey "$LUKS_DEV" "$KEYFILE" || true
+          rm -f "$KEYFILE"
+
+          echo "[INFO] Regenerando initramfs..."
+          update-initramfs -u -k all
+
+          touch "$MARKER"
+          systemctl disable bind-luks-tpm.service || true
+
+          echo "[INFO] Bind completado correctamente"
+          EOF
+
+          chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
+          '
+
+        # 6) Servicio systemd de primer arranque
+        - |
+          curtin in-target --target=/target -- /bin/bash -c '
+          cat >/etc/systemd/system/bind-luks-tpm.service <<'"'"'EOF'"'"'
+          [Unit]
+          Description=Asociar LUKS root al TPM2 en el primer arranque
+          After=multi-user.target
+
+          [Service]
+          Type=oneshot
+          ExecStart=/usr/local/sbin/bind-luks-tpm.sh
+          RemainAfterExit=yes
+
+          [Install]
+          WantedBy=multi-user.target
+          EOF
+
+          systemctl enable bind-luks-tpm.service
+          '
+  02-network.yaml: |
+    autoinstall:
+      version: 1
+
+      network:
+        version: 2
+
+        ethernets:
+          eth0:
+            dhcp4: true
+            dhcp6: false
+            optional: true
+  aa-bb-cc-dd-ee-ff.yaml: |
+    autoinstall:
+      identity:
+        hostname: k3s-master
+  default.yaml: |
+    autoinstall:
+      identity:
+        hostname: default-node
+kind: ConfigMap
+metadata:
+  annotations:
+    argocd.argoproj.io/tracking-id: provisioning:/ConfigMap:provisioning/provisioning-configs
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","data":{"00-installer.yaml":"autoinstall:\n  version: 1\n  locale: es_ES.UTF-8\n\n  keyboard:\n    layout: es\n\n  identity:\n    hostname: ubuntu-server\n    username: xavor\n    password: '$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA.'\n\n  ssh:\n    install-server: true\n    authorized-keys:\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEGjQLANlWCgoyQ5a2IO2TgcD5pIH5wPW55RXYlKlUAd Xavier@casa\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII1BmJqTSExkz9tUSdjAlfqMXyBzEzmgsy6RbQ6RCiK0 Xavor@Tader\n      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFBglC0K5nuwx+DU8TcvEkrvQLRyY01hmTlZWTNka3qc Portatil Xavier\n    allow-pw: true\n\n  packages:\n    - python3\n    - python3-apt\n    - openssh-server\n    - curl\n    - vim\n    - sudo\n    - ca-certificates\n    - git\n\n  late-commands:\n    - |\n      IFACE=\"$(ip route show default | awk '/default/ {print $5}' | head -1)\"\n      if [ -n \"$IFACE\" ] \u0026\u0026 [ -e \"/sys/class/net/$IFACE/address\" ]; then\n        MAC=\"$(tr ':' '-' \u003c /sys/class/net/$IFACE/address)\"\n        mkdir -p /target/etc/cloud/cloud.cfg.d\n        printf '%s\\n' \\\n          'datasource_list: [NoCloud]' \\\n          'datasource:' \\\n          '  NoCloud:' \\\n          \"    seedfrom: http://boot.local/ds/${MAC}/\" \\\n          \u003e /target/etc/cloud/cloud.cfg.d/99-datasource.cfg\n      fi\n\n    - curtin in-target --target=/target -- apt-get update || true\n\n    - |\n      curtin in-target --target=/target -- bash -c '\n      export DEBIAN_FRONTEND=noninteractive\n      apt-get update\n      apt-get install -y python3 python3-apt curl vim sudo git ansible\n      '\n\n  user-data:\n    timezone: Europe/Madrid\n    package_update: true\n    package_upgrade: false\n","01-storage.yaml":"autoinstall:\n  version: 1\n\n  storage:\n    config:\n      - id: disk-sda\n        type: disk\n        path: /dev/sda\n        ptable: gpt\n        wipe: superblock-recursive\n        grub_device: true\n\n      - id: part-efi\n        type: partition\n        device: disk-sda\n        size: 512M\n        flag: esp\n        grub_device: true\n\n      - id: part-boot\n        type: partition\n        device: disk-sda\n        size: 2G\n\n      - id: part-root-crypt\n        type: partition\n        device: disk-sda\n        size: -1\n\n      - id: fs-efi\n        type: format\n        volume: part-efi\n        fstype: fat32\n\n      - id: fs-boot\n        type: format\n        volume: part-boot\n        fstype: ext4\n\n      - id: luks-root\n        type: dm_crypt\n        volume: part-root-crypt\n        key: \"infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM\"\n        cipher: aes-xts-plain64\n        keysize: 512\n\n      - id: vg-system\n        type: lvm_volgroup\n        name: vg_system\n        devices:\n          - luks-root\n\n      - id: lv-root\n        type: lvm_partition\n        name: lv_root\n        volgroup: vg-system\n        size: 30G\n\n      - id: lv-varlog\n        type: lvm_partition\n        name: lv_varlog\n        volgroup: vg-system\n        size: 10G\n\n      - id: lv-tmp\n        type: lvm_partition\n        name: lv_tmp\n        volgroup: vg-system\n        size: 8G\n\n      - id: lv-vartmp\n        type: lvm_partition\n        name: lv_vartmp\n        volgroup: vg-system\n        size: 8G\n\n      - id: lv-home\n        type: lvm_partition\n        name: lv_home\n        volgroup: vg-system\n        size: 10G\n\n      - id: lv-swap\n        type: lvm_partition\n        name: lv_swap\n        volgroup: vg-system\n        size: 8G\n\n      - id: lv-var\n        type: lvm_partition\n        name: lv_var\n        volgroup: vg-system\n        size: -1\n\n      - id: fs-root\n        type: format\n        volume: lv-root\n        fstype: ext4\n\n      - id: fs-varlog\n        type: format\n        volume: lv-varlog\n        fstype: ext4\n\n      - id: fs-tmp\n        type: format\n        volume: lv-tmp\n        fstype: ext4\n\n      - id: fs-vartmp\n        type: format\n        volume: lv-vartmp\n        fstype: ext4\n\n      - id: fs-home\n        type: format\n        volume: lv-home\n        fstype: ext4\n\n      - id: fs-swap\n        type: format\n        volume: lv-swap\n        fstype: swap\n\n      - id: fs-var\n        type: format\n        volume: lv-var\n        fstype: ext4\n\n      - id: mnt-efi\n        type: mount\n        device: fs-efi\n        path: /boot/efi\n\n      - id: mnt-boot\n        type: mount\n        device: fs-boot\n        path: /boot\n\n      - id: mnt-root\n        type: mount\n        device: fs-root\n        path: /\n\n      - id: mnt-varlog\n        type: mount\n        device: fs-varlog\n        path: /var/log\n\n      - id: mnt-tmp\n        type: mount\n        device: fs-tmp\n        path: /tmp\n\n      - id: mnt-vartmp\n        type: mount\n        device: fs-vartmp\n        path: /var/tmp\n\n      - id: mnt-home\n        type: mount\n        device: fs-home\n        path: /home\n\n      - id: mnt-var\n        type: mount\n        device: fs-var\n        path: /var\n\n  late-commands:\n\n    # 1) Crear keyfile temporal dentro de /target\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      echo \"[INFO] Creando keyfile temporal para LUKS...\"\n      mkdir -p /etc/cryptsetup-keys.d\n      KEYFILE=\"/etc/cryptsetup-keys.d/root.key\"\n      printf \"%s\" \"infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM\" \u003e \"$KEYFILE\"\n      chmod 600 \"$KEYFILE\"\n      '\n\n    # 2) Añadir keyfile como slot adicional en el LUKS\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      echo \"[INFO] Añadiendo keyfile como slot temporal en LUKS...\"\n      cryptsetup luksAddKey /dev/sda3 /etc/cryptsetup-keys.d/root.key --key-file \u003c(printf \"%s\" \"infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM\")\n      '\n\n    # 3) Configurar crypttab para usar el keyfile y regenerar initramfs\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      echo \"[INFO] Configurando /etc/crypttab con keyfile...\"\n      UUID=$(blkid -s UUID -o value /dev/sda3)\n      echo \"luks-root UUID=$UUID /etc/cryptsetup-keys.d/root.key luks\" \u003e /etc/crypttab\n      update-initramfs -u -k all\n      '\n\n    # 4) Instalar clevis y herramientas TPM\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      export DEBIAN_FRONTEND=noninteractive\n      apt-get update\n      apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools\n      '\n\n    # 5) Script de primer arranque: bind TPM + limpieza keyfile + regen initramfs\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      cat \u003e/usr/local/sbin/bind-luks-tpm.sh \u003c\u003c'\"'\"'EOF'\"'\"'\n      #!/bin/bash\n      set -euo pipefail\n\n      LUKS_DEV=\"/dev/sda3\"\n      KEYFILE=\"/etc/cryptsetup-keys.d/root.key\"\n      MARKER=\"/etc/clevis-tpm-bound\"\n      PASSPHRASE=\"infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM\"\n\n      echo \"[INFO] Inicio bind LUKS-\u003eTPM\"\n\n      if [ -f \"$MARKER\" ]; then\n        echo \"[INFO] Ya configurado anteriormente\"\n        exit 0\n      fi\n\n      if [ ! -e /dev/tpmrm0 ] \u0026\u0026 [ ! -e /dev/tpm0 ]; then\n        echo \"[INFO] No hay TPM disponible, se omite bind\"\n        touch \"$MARKER\"\n        exit 0\n      fi\n\n      if [ ! -b \"$LUKS_DEV\" ]; then\n        echo \"[ERROR] No existe el dispositivo LUKS\"\n        exit 1\n      fi\n\n      if ! cryptsetup isLuks \"$LUKS_DEV\"; then\n        echo \"[ERROR] El dispositivo indicado no es LUKS\"\n        exit 1\n      fi\n\n      if cryptsetup luksDump \"$LUKS_DEV\" | grep -qi clevis; then\n        echo \"[INFO] Ya existe token clevis en el volumen\"\n        touch \"$MARKER\"\n        update-initramfs -u -k all\n        exit 0\n      fi\n\n      echo \"[INFO] Realizando bind TPM2...\"\n      TMPKEY=$(mktemp)\n      trap 'rm -f \"$TMPKEY\"' EXIT\n\n      printf \"%s\" \"$PASSPHRASE\" \u003e \"$TMPKEY\"\n      chmod 600 \"$TMPKEY\"\n\n      tpm2_dictionarylockout --clear-lockout || true\n      clevis luks bind -y -k \"$TMPKEY\" -d \"$LUKS_DEV\" tpm2 \"{\\\"pcr_ids\\\":\\\"0,7\\\"}\"\n\n      echo \"[INFO] Eliminando keyfile temporal del LUKS (slot) y del disco...\"\n      cryptsetup luksRemoveKey \"$LUKS_DEV\" \"$KEYFILE\" || true\n      rm -f \"$KEYFILE\"\n\n      echo \"[INFO] Regenerando initramfs...\"\n      update-initramfs -u -k all\n\n      touch \"$MARKER\"\n      systemctl disable bind-luks-tpm.service || true\n\n      echo \"[INFO] Bind completado correctamente\"\n      EOF\n\n      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh\n      '\n\n    # 6) Servicio systemd de primer arranque\n    - |\n      curtin in-target --target=/target -- /bin/bash -c '\n      cat \u003e/etc/systemd/system/bind-luks-tpm.service \u003c\u003c'\"'\"'EOF'\"'\"'\n      [Unit]\n      Description=Asociar LUKS root al TPM2 en el primer arranque\n      After=multi-user.target\n\n      [Service]\n      Type=oneshot\n      ExecStart=/usr/local/sbin/bind-luks-tpm.sh\n      RemainAfterExit=yes\n\n      [Install]\n      WantedBy=multi-user.target\n      EOF\n\n      systemctl enable bind-luks-tpm.service\n      '\n","02-network.yaml":"autoinstall:\n  version: 1\n\n  network:\n    version: 2\n\n    ethernets:\n      eth0:\n        dhcp4: true\n        dhcp6: false\n        optional: true\n","aa-bb-cc-dd-ee-ff.yaml":"autoinstall:\n  identity:\n    hostname: k3s-master\n","default.yaml":"autoinstall:\n  identity:\n    hostname: default-node\n"},"kind":"ConfigMap","metadata":{"annotations":{"argocd.argoproj.io/tracking-id":"provisioning:/ConfigMap:provisioning/provisioning-configs"},"name":"provisioning-configs","namespace":"provisioning"}}
+  creationTimestamp: "2026-03-16T21:56:49Z"
+  name: provisioning-configs
+  namespace: provisioning
+  resourceVersion: "513157"
+  uid: 9b3a7d26-50d8-4dce-9831-3027cf85b26f
