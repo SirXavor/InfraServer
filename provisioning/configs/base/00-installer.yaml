@@ -42,7 +42,8 @@ autoinstall:
           > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg
       fi
 
-    - curtin in-target --target=/target bash -lc 'apt-get update && apt-get install -y ansible git || true'
+    - curtin in-target --target=/target -- apt-get update || true
+    - curtin in-target --target=/target -- apt-get install -y ansible git || true
 
   user-data:
     timezone: Europe/Madrid
