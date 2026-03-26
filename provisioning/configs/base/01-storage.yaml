@@ -168,29 +168,43 @@ autoinstall:
         path: /var
 
   late-commands:
+  late-commands:
 
+    # 1. Instalar paquetes
     - |
       curtin in-target --target=/target -- bash -c '
-        set -e
-
-        echo "[INFO] Instalando clevis + TPM..."
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
-        apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools cryptsetup-initramfs
+        apt-get install -y cryptsetup-initramfs clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
+      '
 
-        echo "[INFO] Limpiando posible lockout TPM..."
+    # 2. Limpiar lockout TPM
+    - |
+      curtin in-target --target=/target -- bash -c '
         tpm2_dictionarylockout --clear-lockout || true
+      '
 
-        echo "[INFO] Haciendo bind LUKS -> TPM..."
-
+    # 3. Bind LUKS → TPM
+    - |
+      curtin in-target --target=/target -- bash -c '
         TMPKEY=$(mktemp)
-        printf "%s" "InfraK3s-2026!" > "$TMPKEY"
+        printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM" > "$TMPKEY"
         chmod 600 "$TMPKEY"
 
         clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
 
         rm -f "$TMPKEY"
+      '
 
-        echo "[INFO] Regenerando initramfs..."
+    # 4. Crypttab correcto (CLAVE)
+    - |
+      curtin in-target --target=/target -- bash -c '
+        UUID=$(blkid -s UUID -o value /dev/sda3)
+        echo "luks-root UUID=$UUID none luks,discard,x-initrd.attach" > /etc/crypttab
+      '
+
+    # 5. Regenerar initramfs
+    - |
+      curtin in-target --target=/target -- bash -c '
         update-initramfs -u -k all
       '
