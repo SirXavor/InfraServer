@@ -168,132 +168,144 @@ autoinstall:
         path: /var
 
   late-commands:
-    # 1. Crear keyfile temporal dentro de /target
+
+    # 1. Crear keyfile temporal aleatorio dentro del sistema instalado
     - |
       curtin in-target --target=/target -- /bin/bash -c '
-        echo "[INFO] Creando keyfile temporal para LUKS..."
-        mkdir -p /etc/cryptsetup-keys.d
-        KEYFILE="/etc/cryptsetup-keys.d/root.key"
-        printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM" > "$KEYFILE"
-        chmod 600 "$KEYFILE"
+      set -euo pipefail
+
+      mkdir -p /etc/cryptsetup-keys.d
+      KEYFILE=/etc/cryptsetup-keys.d/root.key
+      PASSFILE=$(mktemp)
+
+      dd if=/dev/urandom of="$KEYFILE" bs=64 count=1 status=none
+      chmod 600 "$KEYFILE"
+
+      printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM" > "$PASSFILE"
+      chmod 600 "$PASSFILE"
+
+      cryptsetup luksAddKey /dev/sda3 "$KEYFILE" --key-file "$PASSFILE"
+
+      rm -f "$PASSFILE"
       '
 
-    # 2. Añadir keyfile como slot adicional en el LUKS
+    # 2. Configurar crypttab para arrancar usando el keyfile temporal
     - |
       curtin in-target --target=/target -- /bin/bash -c '
-        echo "[INFO] Añadiendo keyfile como slot temporal en LUKS..."
-        cryptsetup luksAddKey /dev/sda3 /etc/cryptsetup-keys.d/root.key --key-file <(printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM")
+      set -euo pipefail
+
+      UUID=$(blkid -s UUID -o value /dev/sda3)
+      echo "luks-root UUID=$UUID /etc/cryptsetup-keys.d/root.key luks" > /etc/crypttab
       '
 
-    # 3. Configurar crypttab para usar el keyfile (sin update-initramfs aquí)
+    # 3. Instalar soporte para LUKS+keyfile+TPM
     - |
       curtin in-target --target=/target -- /bin/bash -c '
-        echo "[INFO] Configurando /etc/crypttab con keyfile..."
-        UUID=$(blkid -s UUID -o value /dev/sda3)
-        echo "luks-root UUID=$UUID /etc/cryptsetup-keys.d/root.key luks" > /etc/crypttab
+      set -euo pipefail
+      export DEBIAN_FRONTEND=noninteractive
+
+      apt-get update
+      apt-get install -y cryptsetup-initramfs clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
       '
 
-    # 4. Instalar cryptsetup-initramfs + clevis y dependencias
+    # 4. Regenerar initramfs para que el primer arranque use el keyfile
     - |
       curtin in-target --target=/target -- /bin/bash -c '
-        echo "[INFO] Instalando cryptsetup-initramfs, clevis y dependencias..."
-        export DEBIAN_FRONTEND=noninteractive
-        apt-get update
-        apt-get install -y cryptsetup-initramfs clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
+      set -euo pipefail
+      update-initramfs -u -k all
       '
 
-    # 5. Regenerar initramfs con crypttab + keyfile + hooks ya presentes
+    # 5. Crear script de primer arranque: bind TPM, quitar keyfile y dejar crypttab normal
     - |
-      curtin in-target --target=/target -- /bin/bash -c '
-        echo "[INFO] Regenerando initramfs final..."
-        update-initramfs -u -k all
-      '
+      curtin in-target --target=/target -- /bin/bash -c 'cat > /usr/local/sbin/bind-luks-tpm.sh <<'"'"'EOF'"'"'
+      #!/bin/bash
+      set -euo pipefail
 
-    # 6. Script de primer arranque: bind TPM + limpieza keyfile + regen initramfs
-    - |
-      curtin in-target --target=/target -- /bin/bash -c '
-        cat >/usr/local/sbin/bind-luks-tpm.sh << "EOF"
-        #!/bin/bash
-        set -euo pipefail
+      LUKS_DEV="/dev/sda3"
+      KEYFILE="/etc/cryptsetup-keys.d/root.key"
+      MARKER="/etc/clevis-tpm-bound"
 
-        LUKS_DEV="/dev/sda3"
-        KEYFILE="/etc/cryptsetup-keys.d/root.key"
-        MARKER="/etc/clevis-tpm-bound"
-        PASSPHRASE="infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+      echo "[INFO] Inicio bind LUKS->TPM"
 
-        echo "[INFO] Inicio bind LUKS->TPM"
+      if [ -f "$MARKER" ]; then
+        echo "[INFO] Ya configurado anteriormente"
+        exit 0
+      fi
 
-        if [ -f "$MARKER" ]; then
-          echo "[INFO] Ya configurado anteriormente"
-          exit 0
-        fi
-
-        if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
-          echo "[INFO] No hay TPM disponible, se omite bind"
-          touch "$MARKER"
-          exit 0
-        fi
-
-        if [ ! -b "$LUKS_DEV" ]; then
-          echo "[ERROR] No existe el dispositivo LUKS"
-          exit 1
-        fi
-
-        if ! cryptsetup isLuks "$LUKS_DEV"; then
-          echo "[ERROR] El dispositivo indicado no es LUKS"
-          exit 1
-        fi
-
-        if cryptsetup luksDump "$LUKS_DEV" | grep -qi clevis; then
-          echo "[INFO] Ya existe token clevis en el volumen"
-          touch "$MARKER"
-          update-initramfs -u -k all
-          exit 0
-        fi
-
-        echo "[INFO] Realizando bind TPM2..."
-        TMPKEY=$(mktemp)
-        trap "rm -f \$TMPKEY" EXIT
-
-        printf "%s" "$PASSPHRASE" > "$TMPKEY"
-        chmod 600 "$TMPKEY"
-
-        tpm2_dictionarylockout --clear-lockout || true
-        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
-
-        echo "[INFO] Eliminando keyfile temporal del LUKS (slot) y del disco..."
-        cryptsetup luksRemoveKey "$LUKS_DEV" "$KEYFILE" || true
-        rm -f "$KEYFILE"
-
-        echo "[INFO] Regenerando initramfs..."
-        update-initramfs -u -k all
-
+      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+        echo "[INFO] No hay TPM disponible, se omite bind"
         touch "$MARKER"
-        systemctl disable bind-luks-tpm.service || true
+        exit 0
+      fi
 
-        echo "[INFO] Bind completado correctamente"
-        EOF
+      if [ ! -b "$LUKS_DEV" ]; then
+        echo "[ERROR] No existe el dispositivo LUKS"
+        exit 1
+      fi
 
-        chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
+      if ! cryptsetup isLuks "$LUKS_DEV"; then
+        echo "[ERROR] El dispositivo indicado no es LUKS"
+        exit 1
+      fi
+
+      if [ ! -f "$KEYFILE" ]; then
+        echo "[ERROR] No existe el keyfile temporal"
+        exit 1
+      fi
+
+      if cryptsetup luksDump "$LUKS_DEV" | grep -qi clevis; then
+        echo "[INFO] Ya existe token clevis en el volumen"
+        UUID=$(blkid -s UUID -o value "$LUKS_DEV")
+        echo "luks-root UUID=$UUID none luks" > /etc/crypttab
+        rm -f "$KEYFILE"
+        update-initramfs -u -k all
+        touch "$MARKER"
+        exit 0
+      fi
+
+      echo "[INFO] Limpiando posible TPM DA lockout..."
+      tpm2_dictionarylockout --clear-lockout || true
+
+      echo "[INFO] Asociando LUKS al TPM2..."
+      clevis luks bind -y -k "$KEYFILE" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
+
+      echo "[INFO] Eliminando keyfile temporal del slot LUKS..."
+      cryptsetup luksRemoveKey "$LUKS_DEV" "$KEYFILE"
+
+      echo "[INFO] Eliminando keyfile temporal del disco..."
+      rm -f "$KEYFILE"
+
+      echo "[INFO] Dejando crypttab sin keyfile..."
+      UUID=$(blkid -s UUID -o value "$LUKS_DEV")
+      echo "luks-root UUID=$UUID none luks" > /etc/crypttab
+
+      echo "[INFO] Regenerando initramfs final..."
+      update-initramfs -u -k all
+
+      touch "$MARKER"
+      systemctl disable bind-luks-tpm.service || true
+
+      echo "[INFO] Bind completado correctamente"
+      EOF
+
+      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
       '
 
-    # 7. Servicio systemd de primer arranque
+    # 6. Crear y habilitar servicio one-shot para el primer arranque
     - |
-      curtin in-target --target=/target -- /bin/bash -c '
-        cat >/etc/systemd/system/bind-luks-tpm.service << "EOF"
-        [Unit]
-        Description=Asociar LUKS root al TPM2 en el primer arranque
-        After=multi-user.target
+      curtin in-target --target=/target -- /bin/bash -c 'cat > /etc/systemd/system/bind-luks-tpm.service <<'"'"'EOF'"'"'
+      [Unit]
+      Description=Asociar LUKS root al TPM2 en el primer arranque
+      After=multi-user.target
 
-        [Service]
-        Type=oneshot
-        ExecStart=/usr/local/sbin/bind-luks-tpm.sh
-        RemainAfterExit=yes
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/bind-luks-tpm.sh
+      RemainAfterExit=yes
 
-        [Install]
-        WantedBy=multi-user.target
-        EOF
+      [Install]
+      WantedBy=multi-user.target
+      EOF
 
-        systemctl enable bind-luks-tpm.service
+      systemctl enable bind-luks-tpm.service
       '
-
