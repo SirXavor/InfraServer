@@ -168,9 +168,94 @@ autoinstall:
         path: /var
 
   late-commands:
+    # 1) Dejar el arranque del root cifrado bien preparado
     - |
       curtin in-target --target=/target -- bash -c '
       UUID=$(blkid -s UUID -o value /dev/sda3)
       echo "luks-root UUID=$UUID none luks" > /etc/crypttab
       update-initramfs -u
       '
+
+    # 2) Instalar soporte TPM/LUKS en el sistema final
+    - |
+      curtin in-target --target=/target -- bash -c '
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y clevis clevis-luks clevis-tpm2 tpm2-tools
+      '
+
+    # 3) Crear script de bind LUKS->TPM para primer arranque
+    - |
+      curtin in-target --target=/target -- bash -c "cat > /usr/local/sbin/bind-luks-tpm.sh << 'EOF'
+      #!/bin/bash
+      set -euo pipefail
+
+      LUKS_DEV='/dev/sda3'
+      PASSPHRASE='infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM'
+      MARKER='/etc/clevis-tpm-bound'
+
+      echo '[INFO] Inicio bind LUKS->TPM'
+
+      if [ -f \"\$MARKER\" ]; then
+        echo '[INFO] Ya configurado anteriormente'
+        exit 0
+      fi
+
+      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+        echo '[INFO] No hay TPM disponible, se omite bind'
+        exit 0
+      fi
+
+      if [ ! -b \"\$LUKS_DEV\" ]; then
+        echo '[ERROR] No existe el dispositivo LUKS'
+        exit 1
+      fi
+
+      if ! cryptsetup isLuks \"\$LUKS_DEV\"; then
+        echo '[ERROR] El dispositivo indicado no es LUKS'
+        exit 1
+      fi
+
+      if cryptsetup luksDump \"\$LUKS_DEV\" | grep -qi clevis; then
+        echo '[INFO] Ya existe token clevis en el volumen'
+        touch \"\$MARKER\"
+        update-initramfs -u
+        exit 0
+      fi
+
+      TMPKEY=\$(mktemp)
+      trap 'rm -f \"\$TMPKEY\"' EXIT
+
+      printf '%s' \"\$PASSPHRASE\" > \"\$TMPKEY\"
+      chmod 600 \"\$TMPKEY\"
+
+      echo '[INFO] Asociando LUKS al TPM2...'
+      clevis luks bind -y -k \"\$TMPKEY\" -d \"\$LUKS_DEV\" tpm2 '{}'
+
+      echo '[INFO] Regenerando initramfs...'
+      update-initramfs -u
+
+      touch \"\$MARKER\"
+
+      systemctl disable bind-luks-tpm.service || true
+      echo '[INFO] Bind completado correctamente'
+      EOF
+      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh"
+
+    # 4) Crear servicio one-shot de primer arranque
+    - |
+      curtin in-target --target=/target -- bash -c "cat > /etc/systemd/system/bind-luks-tpm.service << 'EOF'
+      [Unit]
+      Description=Asociar LUKS root al TPM2 en el primer arranque
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/bind-luks-tpm.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+      EOF
+      systemctl enable bind-luks-tpm.service"
