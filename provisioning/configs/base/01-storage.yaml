@@ -166,3 +166,6 @@ autoinstall:
         type: mount
         device: fs-var
         path: /var
+
+  late-commands:
+    - curtin in-target --target=/target cryptsetup luksAddKey /dev/sda3 - <<< "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
