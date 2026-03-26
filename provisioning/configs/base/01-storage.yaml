@@ -168,15 +168,6 @@ autoinstall:
         path: /var
 
   late-commands:
-   
-    # 0. Instalar clevis y dependencias en el sistema target
-    - |
-      curtin in-target --target=/target -- /bin/bash -c '
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update -qq
-      apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
-      '
-
 
     # 1) Crear keyfile temporal dentro de /target
     - |
