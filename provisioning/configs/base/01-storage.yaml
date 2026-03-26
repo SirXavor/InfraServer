@@ -228,6 +228,7 @@ autoinstall:
       chmod 600 "$TMPKEY"
 
       echo "[INFO] Asociando LUKS al TPM2..."
+      tpm2_dictionarylockout --clear-lockout || true
       clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
 
       echo "[INFO] Regenerando initramfs..."
