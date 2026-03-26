@@ -169,28 +169,28 @@ autoinstall:
 
   late-commands:
 
-- |
-  curtin in-target --target=/target -- bash -c '
-    set -e
+    - |
+      curtin in-target --target=/target -- bash -c '
+        set -e
 
-    echo "[INFO] Instalando clevis + TPM..."
-    export DEBIAN_FRONTEND=noninteractive
-    apt-get update
-    apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools cryptsetup-initramfs
+        echo "[INFO] Instalando clevis + TPM..."
+        export DEBIAN_FRONTEND=noninteractive
+        apt-get update
+        apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools cryptsetup-initramfs
 
-    echo "[INFO] Limpiando posible lockout TPM..."
-    tpm2_dictionarylockout --clear-lockout || true
+        echo "[INFO] Limpiando posible lockout TPM..."
+        tpm2_dictionarylockout --clear-lockout || true
 
-    echo "[INFO] Haciendo bind LUKS -> TPM..."
+        echo "[INFO] Haciendo bind LUKS -> TPM..."
 
-    TMPKEY=$(mktemp)
-    printf "%s" "InfraK3s-2026!" > "$TMPKEY"
-    chmod 600 "$TMPKEY"
+        TMPKEY=$(mktemp)
+        printf "%s" "InfraK3s-2026!" > "$TMPKEY"
+        chmod 600 "$TMPKEY"
 
-    clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
+        clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
 
-    rm -f "$TMPKEY"
+        rm -f "$TMPKEY"
 
-    echo "[INFO] Regenerando initramfs..."
-    update-initramfs -u -k all
-  '
+        echo "[INFO] Regenerando initramfs..."
+        update-initramfs -u -k all
+      '

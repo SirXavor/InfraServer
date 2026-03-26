@@ -17,5 +17,3 @@ configMapGenerator:
       - configs/hosts/default.yaml
       - configs/hosts/aa-bb-cc-dd-ee-ff.yaml
 
-generatorOptions:
-  disableNameSuffixHash: true
