@@ -1,6 +1,13 @@
 autoinstall:
   version: 1
 
+  packages:
+    - clevis
+    - clevis-initramfs
+    - clevis-luks
+    - clevis-tpm2
+    - tpm2-tools
+
   storage:
     config:
       - id: disk-sda
@@ -168,7 +175,7 @@ autoinstall:
         path: /var
 
   late-commands:
-    # 1) Dejar el arranque del root cifrado bien preparado
+    # 1. Dejar crypttab bien y regenerar initramfs inicial
     - |
       curtin in-target --target=/target -- bash -c '
       UUID=$(blkid -s UUID -o value /dev/sda3)
@@ -176,15 +183,7 @@ autoinstall:
       update-initramfs -u
       '
 
-    # 2) Instalar soporte TPM/LUKS en el sistema final
-    - |
-      curtin in-target --target=/target -- bash -c '
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y clevis clevis-luks clevis-tpm2 tpm2-tools
-      '
-
-    # 3) Crear script de bind LUKS->TPM para primer arranque
+    # 2. Crear script de bind TPM para el primer arranque
     - |
       curtin in-target --target=/target -- bash -c "cat > /usr/local/sbin/bind-luks-tpm.sh << 'EOF'
       #!/bin/bash
@@ -236,19 +235,18 @@ autoinstall:
       update-initramfs -u
 
       touch \"\$MARKER\"
-
       systemctl disable bind-luks-tpm.service || true
+
       echo '[INFO] Bind completado correctamente'
       EOF
       chmod 0755 /usr/local/sbin/bind-luks-tpm.sh"
 
-    # 4) Crear servicio one-shot de primer arranque
+    # 3. Crear y habilitar servicio one-shot para primer arranque
     - |
       curtin in-target --target=/target -- bash -c "cat > /etc/systemd/system/bind-luks-tpm.service << 'EOF'
       [Unit]
       Description=Asociar LUKS root al TPM2 en el primer arranque
-      After=network-online.target
-      Wants=network-online.target
+      After=multi-user.target
 
       [Service]
       Type=oneshot
