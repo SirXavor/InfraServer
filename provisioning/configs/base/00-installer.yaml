@@ -1,12 +1,15 @@
 autoinstall:
   version: 1
   locale: es_ES.UTF-8
+
   keyboard:
     layout: es
+
   identity:
     hostname: ubuntu-server
     username: xavor
     password: '$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA.'
+
   ssh:
     install-server: true
     authorized-keys:
@@ -14,6 +17,7 @@ autoinstall:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAII1BmJqTSExkz9tUSdjAlfqMXyBzEzmgsy6RbQ6RCiK0 Xavor@Tader
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIFBglC0K5nuwx+DU8TcvEkrvQLRyY01hmTlZWTNka3qc Portatil Xavier
     allow-pw: true
+
   packages:
     - python3
     - python3-apt
@@ -22,18 +26,24 @@ autoinstall:
     - vim
     - sudo
     - ca-certificates
-    - ansible
     - git
+
   late-commands:
     - |
-      MAC=$(cat /sys/class/net/$(ip route show default | awk '/default/ {print $5}' | head -1)/address | tr ':' '-')
-      mkdir -p /target/etc/cloud/cloud.cfg.d
-      cat > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg << EOF
-      datasource_list: [NoCloud]
-      datasource:
-        NoCloud:
-          seedfrom: http://boot.local/ds/${MAC}/
-      EOF
+      IFACE="$(ip route show default | awk '/default/ {print $5}' | head -1)"
+      if [ -n "$IFACE" ] && [ -e "/sys/class/net/$IFACE/address" ]; then
+        MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
+        mkdir -p /target/etc/cloud/cloud.cfg.d
+        printf '%s\n' \
+          'datasource_list: [NoCloud]' \
+          'datasource:' \
+          '  NoCloud:' \
+          "    seedfrom: http://boot.local/ds/${MAC}/" \
+          > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg
+      fi
+
+    - curtin in-target --target=/target bash -lc 'apt-get update && apt-get install -y ansible git || true'
+
   user-data:
     timezone: Europe/Madrid
     package_update: true
