@@ -169,6 +169,7 @@ autoinstall:
         path: /var
 
   late-commands:
+  late-commands:
     # 1. Instalar clevis y dependencias en el sistema target
     - |
       curtin in-target --target=/target -- /bin/bash -c '
@@ -177,29 +178,35 @@ autoinstall:
       apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
       '
 
-    # 2. Hacer el bind LUKS->TPM desde el host del instalador
-    #    En este punto /dev/sda3 ya está abierta por el instalador y el TPM es accesible
+    # 2. Bind LUKS->TPM: ejecutar clevis desde el target pero con acceso al TPM del host
+    #    Montamos /dev dentro del chroot para que vea /dev/tpmrm0
     - |
       /bin/bash -c '
       LUKS_DEV="/dev/sda3"
       PASSPHRASE="infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM"
+      TARGET="/target"
 
       if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
         echo "[WARN] No hay TPM disponible, se omite el bind"
         exit 0
       fi
 
+      # Montar /dev, /proc, /sys en el chroot si no están ya
+      mount --bind /dev  $TARGET/dev  || true
+      mount --bind /proc $TARGET/proc || true
+      mount --bind /sys  $TARGET/sys  || true
+
       echo "[INFO] Limpiando lockout del TPM..."
-      tpm2_dictionarylockout --clear-lockout || true
+      chroot $TARGET tpm2_dictionarylockout --clear-lockout || true
 
       TMPKEY=$(mktemp)
-      trap "rm -f $TMPKEY" EXIT
+      trap "rm -f $TMPKEY; umount $TARGET/dev $TARGET/proc $TARGET/sys 2>/dev/null || true" EXIT
       printf "%s" "$PASSPHRASE" > "$TMPKEY"
       chmod 600 "$TMPKEY"
 
       echo "[INFO] Asociando LUKS al TPM2 con PCR 0,7..."
-      clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
-      echo "[INFO] Bind completado correctamente"
+      chroot $TARGET clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 "{\"pcr_ids\":\"0,7\"}"
+      echo "[INFO] Bind completado"
       '
 
     # 3. Actualizar crypttab en el target
