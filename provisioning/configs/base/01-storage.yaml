@@ -247,10 +247,10 @@ autoinstall:
       echo "[INFO] Configurando red en initramfs para Tang"
       mkdir -p /etc/dracut.conf.d
       cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
-  hostonly="yes"
-  hostonly_cmdline="yes"
-  kernel_cmdline+=" rd.neednet=1 "
-  DRACUTEOF
+      hostonly="yes"
+      hostonly_cmdline="yes"
+      kernel_cmdline+=" rd.neednet=1 "
+      DRACUTEOF
 
       echo "[INFO] Tokens después del bind"
       clevis luks list -d /dev/sda3 || true
