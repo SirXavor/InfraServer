@@ -259,8 +259,12 @@ autoinstall:
       echo "[INFO] Comprobando crypttab"
       cat /etc/crypttab || true
 
-      echo "[INFO] Generando initramfs con dracut"
-      dracut -f -v
+      echo "[INFO] Detectando kernel instalado..."
+      KVER=$(ls /lib/modules | sort | tail -n1)
+      echo "[INFO] Kernel detectado: $KVER"
+
+      echo "[INFO] Generando initramfs con dracut..."
+      dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
 
       echo "[INFO] Listado de /boot"
       ls -lah /boot || true
