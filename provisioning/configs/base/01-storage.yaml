@@ -40,7 +40,7 @@ autoinstall:
       - id: luks-root
         type: dm_crypt
         volume: part-root-crypt
-        key: "InfraK3s-2026!"
+        key: "InfraK3s-2026"
         cipher: aes-xts-plain64
         keysize: 512
 
@@ -168,27 +168,22 @@ autoinstall:
         path: /var
 
   late-commands:
-  late-commands:
-
-    # 1. Instalar paquetes
     - |
       curtin in-target --target=/target -- bash -c '
+        set -e
+
+        echo "[INFO] Instalando clevis + TPM..."
         export DEBIAN_FRONTEND=noninteractive
         apt-get update
-        apt-get install -y cryptsetup-initramfs clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools
-      '
+        apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools cryptsetup-initramfs
 
-    # 2. Limpiar lockout TPM
-    - |
-      curtin in-target --target=/target -- bash -c '
+        echo "[INFO] Limpiando posible lockout TPM..."
         tpm2_dictionarylockout --clear-lockout || true
-      '
 
-    # 3. Bind LUKS → TPM
-    - |
-      curtin in-target --target=/target -- bash -c '
+        echo "[INFO] Haciendo bind LUKS -> TPM..."
+
         TMPKEY=$(mktemp)
-        printf "%s" "infra-k3s-A9kF3LmP8qZ2WxR7tYc6VbH4NdS1UoE5iTjK0QaM" > "$TMPKEY"
+        printf "%s" "InfraK3s-2026" > "$TMPKEY"
         chmod 600 "$TMPKEY"
 
         clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
@@ -196,14 +191,12 @@ autoinstall:
         rm -f "$TMPKEY"
       '
 
-    # 4. Crypttab correcto (CLAVE)
     - |
       curtin in-target --target=/target -- bash -c '
         UUID=$(blkid -s UUID -o value /dev/sda3)
         echo "luks-root UUID=$UUID none luks,discard,x-initrd.attach" > /etc/crypttab
       '
 
-    # 5. Regenerar initramfs
     - |
       curtin in-target --target=/target -- bash -c '
         update-initramfs -u -k all
