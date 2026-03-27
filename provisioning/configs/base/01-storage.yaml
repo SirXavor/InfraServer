@@ -169,33 +169,99 @@ autoinstall:
 
   late-commands:
     - |
-      curtin in-target --target=/target -- bash -euxc '
-        export DEBIAN_FRONTEND=noninteractive
+      curtin in-target --target=/target -- bash -c 'cat >/root/bind-tpm.sh << "EOF"
+      #!/bin/bash
+      set -euxo pipefail
 
-        apt-get update
-        apt-get install -y \
-          dracut \
-          clevis clevis-luks clevis-tpm2 clevis-dracut \
-          tpm2-tools cryptsetup
+      LOGFILE=/root/bind-tpm.log
+      exec > >(tee -a "$LOGFILE") 2>&1
 
-        # Verifica que existe el volumen LUKS real
-        cryptsetup isLuks /dev/sda3
+      echo "============================================================"
+      echo "[INFO] Inicio de bind-tpm.sh"
+      date
+      echo "============================================================"
 
-        # Limpieza lockout TPM si hiciste pruebas previas
-        tpm2_dictionarylockout --clear-lockout || true
+      export DEBIAN_FRONTEND=noninteractive
 
-        # Bind usando la passphrase conocida del despliegue
-        TMPKEY=$(mktemp)
-        trap "rm -f \"$TMPKEY\"" EXIT
-        printf "%s" "InfraK3s-2026" > "$TMPKEY"
-        chmod 600 "$TMPKEY"
+      echo "[INFO] Variables de entorno básicas"
+      uname -a || true
+      cat /etc/os-release || true
 
-        clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
+      echo "[INFO] Estado de discos antes de nada"
+      lsblk || true
+      blkid || true
 
-        # Reconstruir initramfs con dracut
-        dracut -f
+      echo "[INFO] Instalando dracut + clevis + tpm2-tools..."
+      apt-get update
+      apt-get install -y \
+        dracut \
+        clevis \
+        clevis-luks \
+        clevis-tpm2 \
+        clevis-dracut \
+        tpm2-tools \
+        cryptsetup \
+        cryptsetup-initramfs \
+        lvm2 \
+        jq
 
-        # Comprobaciones útiles
-        clevis luks list -d /dev/sda3 || true
-        cryptsetup luksDump /dev/sda3 | grep -A4 -i Tokens || true
-      '
+      echo "[INFO] Comprobando existencia de /dev/sda3"
+      ls -l /dev/sda3
+
+      echo "[INFO] Verificando que /dev/sda3 es LUKS"
+      cryptsetup isLuks /dev/sda3
+
+      echo "[INFO] Dump LUKS inicial"
+      cryptsetup luksDump /dev/sda3 || true
+
+      echo "[INFO] Comprobando dispositivos TPM"
+      ls -l /dev/tpm* || true
+
+      echo "[INFO] Información TPM básica"
+      tpm2_getcap properties-fixed || true
+      tpm2_getcap properties-variable || true
+
+      echo "[INFO] Limpiando posible lockout del TPM"
+      tpm2_dictionarylockout --clear-lockout || true
+
+      TMPKEY=$(mktemp)
+      trap '\''rm -f "$TMPKEY"'\'' EXIT
+
+      printf "%s" "InfraK3s-2026" > "$TMPKEY"
+      chmod 600 "$TMPKEY"
+
+      echo "[INFO] Comprobando slots antes del bind"
+      cryptsetup luksDump /dev/sda3 | sed -n "/Keyslots:/,/Tokens:/p" || true
+
+      echo "[INFO] Ejecutando bind LUKS -> TPM2 con PCR 7"
+      clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 '\''{"pcr_ids":"7"}'\''
+
+      echo "[INFO] Tokens después del bind"
+      clevis luks list -d /dev/sda3 || true
+      cryptsetup luksDump /dev/sda3 || true
+
+      echo "[INFO] Comprobando crypttab"
+      cat /etc/crypttab || true
+
+      echo "[INFO] Generando initramfs con dracut"
+      dracut -f -v
+
+      echo "[INFO] Listado de /boot"
+      ls -lah /boot || true
+
+      echo "[INFO] Buscando clevis dentro del initramfs generado"
+      KVER=$(uname -r)
+      if [ -f "/boot/initrd.img-$KVER" ]; then
+        lsinitramfs "/boot/initrd.img-$KVER" | grep -Ei "clevis|crypt|dracut" || true
+      else
+        echo "[WARN] No existe /boot/initrd.img-$KVER"
+        ls -lah /boot || true
+      fi
+
+      echo "[INFO] Fin correcto de bind-tpm.sh"
+      date
+      EOF
+      chmod 700 /root/bind-tpm.sh'
+
+    - |
+      curtin in-target --target=/target -- bash -c '/root/bind-tpm.sh || (echo "[ERROR] Falló /root/bind-tpm.sh"; cat /root/bind-tpm.log || true; exit 1)'
