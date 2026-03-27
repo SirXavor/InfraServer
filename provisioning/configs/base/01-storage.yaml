@@ -170,34 +170,47 @@ autoinstall:
   late-commands:
     - |
       curtin in-target --target=/target -- bash -c '
-        set -e
+        set -euo pipefail
 
-        echo "[INFO] Instalando clevis + TPM..."
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update
-        apt-get install -y clevis clevis-initramfs clevis-luks clevis-tpm2 tpm2-tools cryptsetup-initramfs
+        apt-get update -qq
+        apt-get install -y -qq \
+          clevis \
+          clevis-initramfs \
+          clevis-luks \
+          clevis-tpm2 \
+          tpm2-tools \
+          cryptsetup-initramfs
 
-        echo "[INFO] Limpiando posible lockout TPM..."
-        tpm2_dictionarylockout --clear-lockout || true
-
-        echo "[INFO] Haciendo bind LUKS -> TPM..."
-
-        TMPKEY=$(mktemp)
-        printf "%s" "InfraK3s-2026" > "$TMPKEY"
-        chmod 600 "$TMPKEY"
-
-        clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
-
-        rm -f "$TMPKEY"
+        # Limpiar lockout TPM por si acaso
+        tpm2_dictionarylockout --clear-lockout 2>/dev/null || true
       '
 
     - |
-      curtin in-target --target=/target -- bash -c '
-        UUID=$(blkid -s UUID -o value /dev/sda3)
-        echo "luks-root UUID=$UUID none luks,discard,x-initrd.attach" > /etc/crypttab
-      '
+      # Este comando corre FUERA de chroot, con acceso al disco real
+      LUKS_DEV="/dev/sda3"
+      PASSPHRASE="InfraK3s-2026"
+
+      TMPKEY=$(mktemp)
+      chmod 600 "$TMPKEY"
+      printf "%s" "$PASSPHRASE" > "$TMPKEY"
+
+      clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 '{"pcr_ids":"7"}'
+
+      rm -f "$TMPKEY"
 
     - |
       curtin in-target --target=/target -- bash -c '
+        set -euo pipefail
+
+        LUKS_DEV="/dev/sda3"
+        UUID=$(blkid -s UUID -o value "$LUKS_DEV")
+
+        # Formato correcto para clevis
+        echo "luks-root UUID=$UUID none luks" > /etc/crypttab
+
+        # Asegurarse de que clevis-initramfs hook está presente
+        cat /usr/share/initramfs-tools/hooks/clevis 2>/dev/null || true
+
         update-initramfs -u -k all
       '
