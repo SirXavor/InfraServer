@@ -169,48 +169,33 @@ autoinstall:
 
   late-commands:
     - |
-      curtin in-target --target=/target -- bash -c '
-        set -euo pipefail
-
+      curtin in-target --target=/target -- bash -euxc '
         export DEBIAN_FRONTEND=noninteractive
-        apt-get update -qq
-        apt-get install -y -qq \
-          clevis \
-          clevis-initramfs \
-          clevis-luks \
-          clevis-tpm2 \
-          tpm2-tools \
-          cryptsetup-initramfs
 
-        # Limpiar lockout TPM por si acaso
-        tpm2_dictionarylockout --clear-lockout 2>/dev/null || true
-      '
+        apt-get update
+        apt-get install -y \
+          dracut \
+          clevis clevis-luks clevis-tpm2 clevis-dracut \
+          tpm2-tools cryptsetup
 
-    - |
-      # Este comando corre FUERA de chroot, con acceso al disco real
-      LUKS_DEV="/dev/sda3"
-      PASSPHRASE="InfraK3s-2026"
+        # Verifica que existe el volumen LUKS real
+        cryptsetup isLuks /dev/sda3
 
-      TMPKEY=$(mktemp)
-      chmod 600 "$TMPKEY"
-      printf "%s" "$PASSPHRASE" > "$TMPKEY"
+        # Limpieza lockout TPM si hiciste pruebas previas
+        tpm2_dictionarylockout --clear-lockout || true
 
-      clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tpm2 '{"pcr_ids":"7"}'
+        # Bind usando la passphrase conocida del despliegue
+        TMPKEY=$(mktemp)
+        trap "rm -f \"$TMPKEY\"" EXIT
+        printf "%s" "InfraK3s-2026" > "$TMPKEY"
+        chmod 600 "$TMPKEY"
 
-      rm -f "$TMPKEY"
+        clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 tpm2 "{\"pcr_ids\":\"7\"}"
 
-    - |
-      curtin in-target --target=/target -- bash -c '
-        set -euo pipefail
+        # Reconstruir initramfs con dracut
+        dracut -f
 
-        LUKS_DEV="/dev/sda3"
-        UUID=$(blkid -s UUID -o value "$LUKS_DEV")
-
-        # Formato correcto para clevis
-        echo "luks-root UUID=$UUID none luks" > /etc/crypttab
-
-        # Asegurarse de que clevis-initramfs hook está presente
-        cat /usr/share/initramfs-tools/hooks/clevis 2>/dev/null || true
-
-        update-initramfs -u -k all
+        # Comprobaciones útiles
+        clevis luks list -d /dev/sda3 || true
+        cryptsetup luksDump /dev/sda3 | grep -A4 -i Tokens || true
       '
