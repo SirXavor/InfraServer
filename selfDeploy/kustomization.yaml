@@ -7,3 +7,4 @@ resources:
   - root.yaml
   - dnsmasq.yaml
   - tftp-provisioning.yaml
+  - tang.yaml
