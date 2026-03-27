@@ -226,7 +226,7 @@ autoinstall:
       cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
       hostonly="yes"
       hostonly_cmdline="yes"
-      kernel_cmdline+=" rd.neednet=1 "
+      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
       DRACUTEOF
 
       echo "[INFO] Detectando kernel instalado"
