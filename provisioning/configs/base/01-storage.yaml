@@ -276,7 +276,7 @@ autoinstall:
       fi
 
       TMPKEY=\$(mktemp)
-      trap 'rm -f "\$TMPKEY"' EXIT
+      trap '\''rm -f "\$TMPKEY"'\'' EXIT
       printf "%s" "\$PASSPHRASE" > "\$TMPKEY"
       chmod 600 "\$TMPKEY"
 
@@ -301,21 +301,22 @@ autoinstall:
       chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
 
       echo "[INFO] Creando servicio systemd persistente"
-      cat >/etc/systemd/system/bind-luks-tpm.service <<SERVICEEOF
-      [Unit]
-      Description=Mantenimiento del bind TPM2 para LUKS root
-      After=network-online.target multi-user.target
-      Wants=network-online.target
+      printf "%s\n" \
+        "[Unit]" \
+        "Description=Mantenimiento del bind TPM2 para LUKS root" \
+        "After=network-online.target multi-user.target" \
+        "Wants=network-online.target" \
+        "" \
+        "[Service]" \
+        "Type=oneshot" \
+        "ExecStart=/usr/local/sbin/bind-luks-tpm.sh" \
+        "RemainAfterExit=yes" \
+        "" \
+        "[Install]" \
+        "WantedBy=multi-user.target" \
+        > /etc/systemd/system/bind-luks-tpm.service
 
-      [Service]
-      Type=oneshot
-      ExecStart=/usr/local/sbin/bind-luks-tpm.sh
-      RemainAfterExit=yes
-
-      [Install]
-      WantedBy=multi-user.target
-      SERVICEEOF
-
+      systemctl daemon-reload
       systemctl enable bind-luks-tpm.service
 
       echo "[INFO] Estado final"
