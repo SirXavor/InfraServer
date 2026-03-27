@@ -169,29 +169,25 @@ autoinstall:
 
   late-commands:
     - |
-      curtin in-target --target=/target -- bash -c 'cat >/root/bind-tpm.sh << "EOF"
+      curtin in-target --target=/target -- bash -c 'cat >/root/setup-luks-unlock.sh << "EOF"
       #!/bin/bash
       set -euxo pipefail
 
-      LOGFILE=/root/bind-tpm.log
+      LOGFILE=/root/setup-luks-unlock.log
       exec > >(tee -a "$LOGFILE") 2>&1
 
+      LUKS_DEV="/dev/sda3"
+      PASSPHRASE="InfraK3s-2026"
+      TANG_URL="http://192.168.1.70:8082"
+
       echo "============================================================"
-      echo "[INFO] Inicio de bind-tpm.sh"
+      echo "[INFO] Inicio de setup-luks-unlock.sh"
       date
       echo "============================================================"
 
       export DEBIAN_FRONTEND=noninteractive
 
-      echo "[INFO] Variables de entorno básicas"
-      uname -a || true
-      cat /etc/os-release || true
-
-      echo "[INFO] Estado de discos antes de nada"
-      lsblk || true
-      blkid || true
-
-      echo "[INFO] Instalando dracut + clevis + tpm2-tools..."
+      echo "[INFO] Instalando paquetes necesarios"
       apt-get update
       apt-get install -y \
         dracut \
@@ -205,44 +201,25 @@ autoinstall:
         lvm2 \
         jq
 
-      echo "[INFO] Comprobando existencia de /dev/sda3"
-      ls -l /dev/sda3
-
-      echo "[INFO] Verificando que /dev/sda3 es LUKS"
-      cryptsetup isLuks /dev/sda3
-
-      echo "[INFO] Dump LUKS inicial"
-      cryptsetup luksDump /dev/sda3 || true
-
-      echo "[INFO] Comprobando dispositivos TPM"
-      ls -l /dev/tpm* || true
-
-      echo "[INFO] Información TPM básica"
-      tpm2_getcap properties-fixed || true
-      tpm2_getcap properties-variable || true
-
-      echo "[INFO] Limpiando posible lockout del TPM"
-      tpm2_dictionarylockout --clear-lockout || true
+      echo "[INFO] Comprobando dispositivo LUKS"
+      ls -l "$LUKS_DEV"
+      cryptsetup isLuks "$LUKS_DEV"
 
       TMPKEY=$(mktemp)
       trap '\''rm -f "$TMPKEY"'\'' EXIT
-
-      printf "%s" "InfraK3s-2026" > "$TMPKEY"
+      printf "%s" "$PASSPHRASE" > "$TMPKEY"
       chmod 600 "$TMPKEY"
 
-      echo "[INFO] Comprobando slots antes del bind"
-      cryptsetup luksDump /dev/sda3 | sed -n "/Keyslots:/,/Tokens:/p" || true
+      echo "[INFO] Comprobando tokens existentes"
+      clevis luks list -d "$LUKS_DEV" || true
+      cryptsetup luksDump "$LUKS_DEV" || true
 
-      echo "[INFO] Asociando LUKS con SSS: TPM2 o Tang"
-      clevis luks bind -y -k "$TMPKEY" -d /dev/sda3 sss '\''{
-        "t": 1,
-        "pins": {
-          "tpm2": {},
-          "tang": {
-            "url": "http://192.168.1.70:8082"
-          }
-        }
-      }'\''
+      echo "[INFO] Asegurando bind Tang para primer arranque"
+      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+        echo "[INFO] Ya existe token Tang"
+      else
+        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
+      fi
 
       echo "[INFO] Configurando red en initramfs para Tang"
       mkdir -p /etc/dracut.conf.d
@@ -252,36 +229,104 @@ autoinstall:
       kernel_cmdline+=" rd.neednet=1 "
       DRACUTEOF
 
-      echo "[INFO] Tokens después del bind"
-      clevis luks list -d /dev/sda3 || true
-      cryptsetup luksDump /dev/sda3 || true
-
-      echo "[INFO] Comprobando crypttab"
-      cat /etc/crypttab || true
-
-      echo "[INFO] Detectando kernel instalado..."
+      echo "[INFO] Detectando kernel instalado"
       KVER=$(ls /lib/modules | sort | tail -n1)
       echo "[INFO] Kernel detectado: $KVER"
 
-      echo "[INFO] Generando initramfs con dracut..."
+      echo "[INFO] Generando initramfs con dracut"
       dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
 
-      echo "[INFO] Listado de /boot"
-      ls -lah /boot || true
+      echo "[INFO] Creando script de mantenimiento TPM"
+      cat >/usr/local/sbin/bind-luks-tpm.sh <<TPMEOF
+      #!/bin/bash
+      set -euo pipefail
 
-      echo "[INFO] Buscando clevis dentro del initramfs generado"
-      KVER=$(uname -r)
-      if [ -f "/boot/initrd.img-$KVER" ]; then
-        lsinitramfs "/boot/initrd.img-$KVER" | grep -Ei "clevis|crypt|dracut|network" || true
-      else
-        echo "[WARN] No existe /boot/initrd.img-$KVER"
-        ls -lah /boot || true
+      LOGFILE=/root/bind-luks-tpm.log
+      exec > >(tee -a "\$LOGFILE") 2>&1
+
+      LUKS_DEV="/dev/sda3"
+      PASSPHRASE="InfraK3s-2026"
+
+      echo "============================================================"
+      echo "[INFO] Inicio de bind-luks-tpm.sh"
+      date
+      echo "============================================================"
+
+      if [ ! -b "\$LUKS_DEV" ]; then
+        echo "[ERROR] No existe \$LUKS_DEV"
+        exit 1
       fi
 
-      echo "[INFO] Fin correcto de bind-tpm.sh"
+      if ! cryptsetup isLuks "\$LUKS_DEV"; then
+        echo "[ERROR] \$LUKS_DEV no es un dispositivo LUKS"
+        exit 1
+      fi
+
+      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+        echo "[INFO] No hay TPM disponible; se mantiene Tang como método de desbloqueo"
+        exit 0
+      fi
+
+      echo "[INFO] Comprobando tokens actuales"
+      clevis luks list -d "\$LUKS_DEV" || true
+
+      if clevis luks list -d "\$LUKS_DEV" 2>/dev/null | grep -qi tpm2; then
+        echo "[INFO] Ya existe token TPM2; no se hace nada"
+        exit 0
+      fi
+
+      TMPKEY=\$(mktemp)
+      trap 'rm -f "\$TMPKEY"' EXIT
+      printf "%s" "\$PASSPHRASE" > "\$TMPKEY"
+      chmod 600 "\$TMPKEY"
+
+      echo "[INFO] Limpiando posible lockout TPM"
+      tpm2_dictionarylockout --clear-lockout || true
+
+      echo "[INFO] Asociando LUKS al TPM2 en el sistema real"
+      clevis luks bind -y -k "\$TMPKEY" -d "\$LUKS_DEV" tpm2 "{}"
+
+      echo "[INFO] Regenerando initramfs tras bind TPM"
+      KVER=\$(ls /lib/modules | sort | tail -n1)
+      dracut -f -v "/boot/initrd.img-\$KVER" "\$KVER"
+
+      echo "[INFO] Tokens finales"
+      clevis luks list -d "\$LUKS_DEV" || true
+      cryptsetup luksDump "\$LUKS_DEV" || true
+
+      echo "[INFO] Fin correcto de bind-luks-tpm.sh"
+      date
+      TPMEOF
+
+      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
+
+      echo "[INFO] Creando servicio systemd persistente"
+      cat >/etc/systemd/system/bind-luks-tpm.service <<SERVICEEOF
+      [Unit]
+      Description=Mantenimiento del bind TPM2 para LUKS root
+      After=network-online.target multi-user.target
+      Wants=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/bind-luks-tpm.sh
+      RemainAfterExit=yes
+
+      [Install]
+      WantedBy=multi-user.target
+      SERVICEEOF
+
+      systemctl enable bind-luks-tpm.service
+
+      echo "[INFO] Estado final"
+      cat /etc/crypttab || true
+      ls -lah /boot || true
+      clevis luks list -d "$LUKS_DEV" || true
+
+      echo "[INFO] Fin correcto de setup-luks-unlock.sh"
       date
       EOF
-      chmod 700 /root/bind-tpm.sh'
+      chmod 700 /root/setup-luks-unlock.sh'
 
     - |
-      curtin in-target --target=/target -- bash -c '/root/bind-tpm.sh || (echo "[ERROR] Falló /root/bind-tpm.sh"; cat /root/bind-tpm.log || true; exit 1)'
+      curtin in-target --target=/target -- bash -c '/root/setup-luks-unlock.sh || (echo "[ERROR] Falló /root/setup-luks-unlock.sh"; cat /root/setup-luks-unlock.log || true; exit 1)'
