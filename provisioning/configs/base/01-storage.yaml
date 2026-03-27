@@ -168,166 +168,171 @@ autoinstall:
         path: /var
 
   late-commands:
-    - |
-      curtin in-target --target=/target -- bash -c 'cat >/root/setup-luks-unlock.sh << "EOF"
-      #!/bin/bash
-      set -euxo pipefail
+      - |
+        curtin in-target --target=/target -- bash -c 'cat >/root/setup-luks-unlock.sh << "EOF"
+        #!/bin/bash
+        set -euxo pipefail
 
-      LOGFILE=/root/setup-luks-unlock.log
-      exec > >(tee -a "$LOGFILE") 2>&1
+        LOGFILE=/root/setup-luks-unlock.log
+        exec > >(tee -a "$LOGFILE") 2>&1
 
-      LUKS_DEV="/dev/sda3"
-      PASSPHRASE="InfraK3s-2026"
-      TANG_URL="http://192.168.1.70:8082"
+        LUKS_DEV="/dev/sda3"
+        PASSPHRASE="InfraK3s-2026"
+        TANG_URL="http://192.168.1.70:8082"
 
-      echo "============================================================"
-      echo "[INFO] Inicio de setup-luks-unlock.sh"
-      date
-      echo "============================================================"
+        echo "============================================================"
+        echo "[INFO] Inicio de setup-luks-unlock.sh"
+        date
+        echo "============================================================"
 
-      export DEBIAN_FRONTEND=noninteractive
+        export DEBIAN_FRONTEND=noninteractive
 
-      echo "[INFO] Instalando paquetes necesarios"
-      apt-get update
-      apt-get install -y \
-        dracut \
-        clevis \
-        clevis-luks \
-        clevis-tpm2 \
-        clevis-dracut \
-        tpm2-tools \
-        cryptsetup \
-        cryptsetup-initramfs \
-        lvm2 \
-        jq
+        echo "[INFO] Instalando paquetes necesarios"
+        apt-get update
+        apt-get install -y \
+          dracut \
+          clevis \
+          clevis-luks \
+          clevis-tpm2 \
+          clevis-dracut \
+          tpm2-tools \
+          cryptsetup \
+          cryptsetup-initramfs \
+          lvm2 \
+          jq
 
-      echo "[INFO] Comprobando dispositivo LUKS"
-      ls -l "$LUKS_DEV"
-      cryptsetup isLuks "$LUKS_DEV"
+        echo "[INFO] Comprobando dispositivo LUKS"
+        ls -l "$LUKS_DEV"
+        cryptsetup isLuks "$LUKS_DEV"
 
-      TMPKEY=$(mktemp)
-      trap '\''rm -f "$TMPKEY"'\'' EXIT
-      printf "%s" "$PASSPHRASE" > "$TMPKEY"
-      chmod 600 "$TMPKEY"
+        TMPKEY=$(mktemp)
+        trap '\''rm -f "$TMPKEY"'\'' EXIT
+        printf "%s" "$PASSPHRASE" > "$TMPKEY"
+        chmod 600 "$TMPKEY"
 
-      echo "[INFO] Comprobando tokens existentes"
-      clevis luks list -d "$LUKS_DEV" || true
-      cryptsetup luksDump "$LUKS_DEV" || true
+        echo "[INFO] Comprobando tokens existentes"
+        clevis luks list -d "$LUKS_DEV" || true
+        cryptsetup luksDump "$LUKS_DEV" || true
 
-      echo "[INFO] Asegurando bind Tang para primer arranque"
-      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
-        echo "[INFO] Ya existe token Tang"
-      else
-        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
-      fi
+        echo "[INFO] Asegurando bind Tang para primer arranque"
+        if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+          echo "[INFO] Ya existe token Tang"
+        else
+          clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
+        fi
 
-      echo "[INFO] Configurando red en initramfs para Tang"
-      mkdir -p /etc/dracut.conf.d
-      cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
-      hostonly="yes"
-      hostonly_cmdline="yes"
-      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-      DRACUTEOF
+        echo "[INFO] Configurando red en initramfs para Tang"
+        mkdir -p /etc/dracut.conf.d
+        cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
+        hostonly="yes"
+        hostonly_cmdline="yes"
+        kernel_cmdline+=" rd.neednet=1 ip=dhcp "
+        DRACUTEOF
 
-      echo "[INFO] Detectando kernel instalado"
-      KVER=$(ls /lib/modules | sort | tail -n1)
-      echo "[INFO] Kernel detectado: $KVER"
+        echo "[INFO] Detectando kernel instalado"
+        KVER=$(ls /lib/modules | sort | tail -n1)
+        echo "[INFO] Kernel detectado: $KVER"
 
-      echo "[INFO] Generando initramfs con dracut"
-      dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
+        echo "[INFO] Generando initramfs con dracut"
+        dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
 
-      echo "[INFO] Creando script de mantenimiento TPM"
-      cat >/usr/local/sbin/bind-luks-tpm.sh <<TPMEOF
-      #!/bin/bash
-      set -euo pipefail
+        echo "[INFO] Creando script de bind TPM post-arranque"
+        cat >/usr/local/sbin/bind-luks-tpm.sh <<TPMEOF
+        #!/bin/bash
+        set -euo pipefail
 
-      LOGFILE=/root/bind-luks-tpm.log
-      exec > >(tee -a "\$LOGFILE") 2>&1
+        LOGFILE=/root/bind-luks-tpm.log
+        exec > >(tee -a "\$LOGFILE") 2>&1
 
-      LUKS_DEV="/dev/sda3"
-      PASSPHRASE="InfraK3s-2026"
+        LUKS_DEV="/dev/sda3"
+        PASSPHRASE="InfraK3s-2026"
+        MARKER="/etc/clevis-tpm-bound"
 
-      echo "============================================================"
-      echo "[INFO] Inicio de bind-luks-tpm.sh"
-      date
-      echo "============================================================"
+        echo "========================================"
+        echo "[INFO] Inicio bind-luks-tpm.sh"
+        date
+        echo "========================================"
 
-      if [ ! -b "\$LUKS_DEV" ]; then
-        echo "[ERROR] No existe \$LUKS_DEV"
-        exit 1
-      fi
+        if [ -f "\$MARKER" ]; then
+          echo "[INFO] TPM ya configurado, saliendo"
+          exit 0
+        fi
 
-      if ! cryptsetup isLuks "\$LUKS_DEV"; then
-        echo "[ERROR] \$LUKS_DEV no es un dispositivo LUKS"
-        exit 1
-      fi
+        if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
+          echo "[WARN] No hay TPM disponible, se mantiene Tang como único método"
+          exit 0
+        fi
 
-      if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
-        echo "[INFO] No hay TPM disponible; se mantiene Tang como método de desbloqueo"
-        exit 0
-      fi
+        if ! cryptsetup isLuks "\$LUKS_DEV"; then
+          echo "[ERROR] \$LUKS_DEV no es LUKS"
+          exit 1
+        fi
 
-      echo "[INFO] Comprobando tokens actuales"
-      clevis luks list -d "\$LUKS_DEV" || true
+        if clevis luks list -d "\$LUKS_DEV" 2>/dev/null | grep -qi tpm2; then
+          echo "[INFO] Token TPM2 ya presente"
+          touch "\$MARKER"
+          exit 0
+        fi
 
-      if clevis luks list -d "\$LUKS_DEV" 2>/dev/null | grep -qi tpm2; then
-        echo "[INFO] Ya existe token TPM2; no se hace nada"
-        exit 0
-      fi
+        TMPKEY=\$(mktemp)
+        trap 'rm -f "\$TMPKEY"' EXIT
+        printf "%s" "\$PASSPHRASE" > "\$TMPKEY"
+        chmod 600 "\$TMPKEY"
 
-      TMPKEY=\$(mktemp)
-      trap '\''rm -f "\$TMPKEY"'\'' EXIT
-      printf "%s" "\$PASSPHRASE" > "\$TMPKEY"
-      chmod 600 "\$TMPKEY"
+        echo "[INFO] Limpiando lockout TPM"
+        tpm2_dictionarylockout --clear-lockout || true
 
-      echo "[INFO] Limpiando posible lockout TPM"
-      tpm2_dictionarylockout --clear-lockout || true
+        echo "[INFO] Bind LUKS -> TPM2 (PCR 7)"
+        clevis luks bind -y -k "\$TMPKEY" -d "\$LUKS_DEV" tpm2 '{"pcr_ids":"7"}'
 
-      echo "[INFO] Asociando LUKS al TPM2 en el sistema real"
-      clevis luks bind -y -k "\$TMPKEY" -d "\$LUKS_DEV" tpm2 "{}"
+        echo "[INFO] Tokens activos tras bind:"
+        clevis luks list -d "\$LUKS_DEV"
 
-      echo "[INFO] Regenerando initramfs tras bind TPM"
-      KVER=\$(ls /lib/modules | sort | tail -n1)
-      dracut -f -v "/boot/initrd.img-\$KVER" "\$KVER"
+        echo "[INFO] Regenerando initramfs"
+        KVER=\$(ls /lib/modules | sort | tail -n1)
+        dracut -f "/boot/initrd.img-\$KVER" "\$KVER"
 
-      echo "[INFO] Tokens finales"
-      clevis luks list -d "\$LUKS_DEV" || true
-      cryptsetup luksDump "\$LUKS_DEV" || true
+        touch "\$MARKER"
+        systemctl disable bind-luks-tpm.service || true
 
-      echo "[INFO] Fin correcto de bind-luks-tpm.sh"
-      date
-      TPMEOF
+        echo "[INFO] Bind TPM completado. Tokens finales:"
+        clevis luks list -d "\$LUKS_DEV"
+        date
+        TPMEOF
 
-      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
+        chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
 
-      echo "[INFO] Creando servicio systemd persistente"
-      printf "%s\n" \
-        "[Unit]" \
-        "Description=Mantenimiento del bind TPM2 para LUKS root" \
-        "After=network-online.target multi-user.target" \
-        "Wants=network-online.target" \
-        "" \
-        "[Service]" \
-        "Type=oneshot" \
-        "ExecStart=/usr/local/sbin/bind-luks-tpm.sh" \
-        "RemainAfterExit=yes" \
-        "" \
-        "[Install]" \
-        "WantedBy=multi-user.target" \
-        > /etc/systemd/system/bind-luks-tpm.service
+        echo "[INFO] Creando servicio systemd bind-luks-tpm"
+        cat >/etc/systemd/system/bind-luks-tpm.service <<SVCEOF
+        [Unit]
+        Description=Bind LUKS root al TPM2 tras primer arranque con Tang
+        After=network-online.target multi-user.target
+        Wants=network-online.target
+        ConditionPathExists=!/etc/clevis-tpm-bound
 
-      systemctl daemon-reload
-      systemctl enable bind-luks-tpm.service
+        [Service]
+        Type=oneshot
+        ExecStart=/usr/local/sbin/bind-luks-tpm.sh
+        RemainAfterExit=yes
+        StandardOutput=journal
+        StandardError=journal
 
-      echo "[INFO] Estado final"
-      cat /etc/crypttab || true
-      ls -lah /boot || true
-      clevis luks list -d "$LUKS_DEV" || true
+        [Install]
+        WantedBy=multi-user.target
+        SVCEOF
 
-      echo "[INFO] Fin correcto de setup-luks-unlock.sh"
-      date
-      EOF
-      chmod 700 /root/setup-luks-unlock.sh'
+        systemctl daemon-reload
+        systemctl enable bind-luks-tpm.service
 
-    - |
-      curtin in-target --target=/target -- bash -c '/root/setup-luks-unlock.sh || (echo "[ERROR] Falló /root/setup-luks-unlock.sh"; cat /root/setup-luks-unlock.log || true; exit 1)'
+        echo "[INFO] Estado final"
+        cat /etc/crypttab || true
+        ls -lah /boot || true
+        clevis luks list -d "$LUKS_DEV" || true
+
+        echo "[INFO] Fin correcto de setup-luks-unlock.sh"
+        date
+        EOF
+        chmod 700 /root/setup-luks-unlock.sh'
+
+      - |
+        curtin in-target --target=/target -- bash -c '/root/setup-luks-unlock.sh || (echo "[ERROR] Falló setup-luks-unlock.sh"; cat /root/setup-luks-unlock.log || true; exit 1)'
