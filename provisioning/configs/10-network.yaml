@@ -1,3 +1,6 @@
+kind: base
+name: network
+
 autoinstall:
   version: 1
 

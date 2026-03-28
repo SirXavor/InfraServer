@@ -1,4 +1,0 @@
-autoinstall:
-  identity:
-    hostname: k3s-master
-    profile: noswap

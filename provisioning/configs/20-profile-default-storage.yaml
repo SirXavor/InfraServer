@@ -1,3 +1,6 @@
+kind: profile
+name: default
+
 autoinstall:
   version: 1
 
@@ -80,6 +83,12 @@ autoinstall:
         volgroup: vg-system
         size: 10G
 
+      - id: lv-swap
+        type: lvm_partition
+        name: lv_swap
+        volgroup: vg-system
+        size: 8G
+
       - id: lv-var
         type: lvm_partition
         name: lv_var
@@ -110,6 +119,11 @@ autoinstall:
         type: format
         volume: lv-home
         fstype: ext4
+
+      - id: fs-swap
+        type: format
+        volume: lv-swap
+        fstype: swap
 
       - id: fs-var
         type: format
@@ -217,11 +231,6 @@ autoinstall:
       hostonly_cmdline="yes"
       kernel_cmdline+=" rd.neednet=1 ip=dhcp "
       DRACUTEOF
-
-      echo "[INFO] Eliminando swap para nodos Kubernetes"
-      swapoff -a || true
-      rm -f /swap.img || true
-      sed -i "\|/swap.img|d" /etc/fstab || true
 
       echo "[INFO] Detectando kernel instalado"
       KVER=$(ls /lib/modules | sort | tail -n1)

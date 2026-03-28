@@ -1,0 +1,5 @@
+kind: host
+name: default
+
+profile: default
+hostname: default-node

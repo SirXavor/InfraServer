@@ -10,12 +10,10 @@ configMapGenerator:
   - name: provisioning-configs
     namespace: provisioning
     files:
-      - configs/base/00-installer.yaml
-      - configs/base/02-network.yaml
-
-      - configs/profiles/default/01-storage-default.yaml
-      - configs/profiles/noswap/01-storage-noswap.yaml
-
-      - configs/hosts/default.yaml
-      - configs/hosts/aa-bb-cc-dd-ee-ff.yaml
+      - configs/00-installer.yaml
+      - configs/10-network.yaml
+      - configs/20-profile-default-storage.yaml
+      - configs/20-profile-noswap-storage.yaml
+      - configs/90-host-aa-bb-cc-dd-ee-ff.yaml
+      - configs/90-host-default.yaml
 
