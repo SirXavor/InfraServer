@@ -13,8 +13,8 @@ configMapGenerator:
       - configs/base/00-installer.yaml
       - configs/base/02-network.yaml
 
-      - configs/base/profiles/default/01-storage.yaml
-      - configs/base/profiles/noswap/01-storage.yaml
+      - configs/profiles/default/01-storage.yaml
+      - configs/profiles/noswap/01-storage.yaml
 
       - configs/hosts/default.yaml
       - configs/hosts/aa-bb-cc-dd-ee-ff.yaml
