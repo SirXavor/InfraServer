@@ -80,12 +80,6 @@ autoinstall:
         volgroup: vg-system
         size: 10G
 
-      - id: lv-swap
-        type: lvm_partition
-        name: lv_swap
-        volgroup: vg-system
-        size: 8G
-
       - id: lv-var
         type: lvm_partition
         name: lv_var
@@ -116,11 +110,6 @@ autoinstall:
         type: format
         volume: lv-home
         fstype: ext4
-
-      - id: fs-swap
-        type: format
-        volume: lv-swap
-        fstype: swap
 
       - id: fs-var
         type: format
@@ -229,95 +218,17 @@ autoinstall:
       kernel_cmdline+=" rd.neednet=1 ip=dhcp "
       DRACUTEOF
 
+      echo "[INFO] Eliminando swap para nodos Kubernetes"
+      swapoff -a || true
+      rm -f /swap.img || true
+      sed -i "\|/swap.img|d" /etc/fstab || true
+
       echo "[INFO] Detectando kernel instalado"
       KVER=$(ls /lib/modules | sort | tail -n1)
       echo "[INFO] Kernel detectado: $KVER"
 
       echo "[INFO] Generando initramfs con dracut"
       dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
-
-      echo "[INFO] Creando script de mantenimiento TPM"
-      printf "%s\n" \
-        "#!/bin/bash" \
-        "set -euo pipefail" \
-        "" \
-        "LOGFILE=/root/bind-luks-tpm.log" \
-        "exec > >(tee -a \"\$LOGFILE\") 2>&1" \
-        "" \
-        "LUKS_DEV=\"/dev/sda3\"" \
-        "PASSPHRASE=\"InfraK3s-2026\"" \
-        "" \
-        "echo \"============================================================\"" \
-        "echo \"[INFO] Inicio de bind-luks-tpm.sh\"" \
-        "date" \
-        "echo \"============================================================\"" \
-        "" \
-        "if [ ! -b \"\$LUKS_DEV\" ]; then" \
-        "  echo \"[ERROR] No existe \$LUKS_DEV\"" \
-        "  exit 1" \
-        "fi" \
-        "" \
-        "if ! cryptsetup isLuks \"\$LUKS_DEV\"; then" \
-        "  echo \"[ERROR] \$LUKS_DEV no es un dispositivo LUKS\"" \
-        "  exit 1" \
-        "fi" \
-        "" \
-        "if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then" \
-        "  echo \"[INFO] No hay TPM disponible\"" \
-        "  exit 0" \
-        "fi" \
-        "" \
-        "echo \"[INFO] Tokens actuales\"" \
-        "clevis luks list -d \"\$LUKS_DEV\" || true" \
-        "" \
-        "if clevis luks list -d \"\$LUKS_DEV\" 2>/dev/null | grep -qi tpm2; then" \
-        "  echo \"[INFO] Ya existe token TPM2; no se hace nada\"" \
-        "  exit 0" \
-        "fi" \
-        "" \
-        "TMPKEY=\$(mktemp)" \
-        "trap \"rm -f \\\"\$TMPKEY\\\"\" EXIT" \
-        "printf \"%s\" \"\$PASSPHRASE\" > \"\$TMPKEY\"" \
-        "chmod 600 \"\$TMPKEY\"" \
-        "" \
-        "echo \"[INFO] Limpiando posible lockout TPM\"" \
-        "tpm2_dictionarylockout --clear-lockout || true" \
-        "" \
-        "echo \"[INFO] Asociando LUKS al TPM2 en el sistema real\"" \
-        "clevis luks bind -y -k \"\$TMPKEY\" -d \"\$LUKS_DEV\" tpm2 \"{}\"" \
-        "" \
-        "echo \"[INFO] Regenerando initramfs tras bind TPM\"" \
-        "KVER=\$(ls /lib/modules | sort | tail -n1)" \
-        "dracut -f -v \"/boot/initrd.img-\$KVER\" \"\$KVER\"" \
-        "" \
-        "echo \"[INFO] Tokens finales\"" \
-        "clevis luks list -d \"\$LUKS_DEV\" || true" \
-        "cryptsetup luksDump \"\$LUKS_DEV\" || true" \
-        "" \
-        "echo \"[INFO] Fin correcto de bind-luks-tpm.sh\"" \
-        "date" \
-        > /usr/local/sbin/bind-luks-tpm.sh
-
-      chmod 0755 /usr/local/sbin/bind-luks-tpm.sh
-
-      echo "[INFO] Creando servicio systemd persistente"
-      printf "%s\n" \
-        "[Unit]" \
-        "Description=Mantenimiento del bind TPM2 para LUKS root" \
-        "After=network-online.target multi-user.target" \
-        "Wants=network-online.target" \
-        "" \
-        "[Service]" \
-        "Type=oneshot" \
-        "ExecStart=/usr/local/sbin/bind-luks-tpm.sh" \
-        "RemainAfterExit=yes" \
-        "" \
-        "[Install]" \
-        "WantedBy=multi-user.target" \
-        > /etc/systemd/system/bind-luks-tpm.service
-
-      systemctl daemon-reload || true
-      systemctl enable bind-luks-tpm.service
 
       echo "[INFO] Estado final"
       cat /etc/crypttab || true
