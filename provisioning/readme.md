@@ -6,7 +6,7 @@ Este sistema permite generar automáticamente configuraciones `cloud-init` (auto
 * Perfiles reutilizables
 * Overrides por host (MAC)
 
-Todo se compone dinámicamente mediante un servidor Python (Flask) que sirve los datos a los nodos durante el arranque.
+Además, forma parte de una **arquitectura completa de provisioning**, incluyendo arranque por red (PXE / HTTP Boot).
 
 ---
 
@@ -24,9 +24,77 @@ BASE → PROFILE(s) → HOST
 
 ---
 
-# 📁 Estructura lógica
+# 🏗️ Arquitectura de Provisioning
 
-Todos los archivos YAML viven en el mismo directorio (`/configs` en el contenedor), pero se diferencian por cabeceras:
+**Objetivo:** provisioning modular compatible con **PXE clásico** y **HTTP Boot**.
+
+## kernel-provisioning
+
+Sirve contenido por **HTTP (nginx)**.
+
+**Contenido:**
+
+* `vmlinuz`
+* `initrd`
+* `ipxe/boot.ipxe`
+* `ipxe/menu.ipxe`
+* `ds/<mac>/user-data`
+* `ds/<mac>/meta-data`
+
+Se expone vía **Ingress** en:
+
+```
+boot.local
+```
+
+Este componente incluye el servidor Python que genera dinámicamente el `cloud-init`.
+
+---
+
+## tftp-provisioning
+
+Sirve contenido por **TFTP (xinetd + tftp-hpa)**.
+
+**Contenido:**
+
+* `undionly.kpxe` → BIOS PXE → iPXE
+* `ipxe.efi` → UEFI PXE → iPXE
+
+Se expone mediante:
+
+```
+hostPort: 69/udp
+```
+
+(en el nodo del cluster).
+
+---
+
+# 🔄 Flujos de arranque soportados
+
+## PXE clásico (BIOS / UEFI)
+
+```
+DHCP
+  → TFTP (undionly.kpxe / ipxe.efi)
+  → iPXE
+  → HTTP (boot.local/ipxe/boot.ipxe)
+  → autoinstall
+```
+
+## HTTP Boot (UEFI)
+
+```
+UEFI
+  → http://boot.local/ipxe/boot.ipxe
+  → autoinstall
+```
+
+---
+
+# 📁 Modelo de configuración
+
+Todos los YAML viven juntos, pero se diferencian por cabeceras.
 
 ## Tipos de documentos
 
@@ -39,7 +107,7 @@ name: installer
 ...contenido cloud-init...
 ```
 
-Se aplican **todos** los `kind: base` en orden.
+Se aplican **todos** los `kind: base`.
 
 ---
 
@@ -52,19 +120,7 @@ name: noswap
 ...contenido cloud-init...
 ```
 
-Se aplican solo los perfiles indicados por el host.
-
-Puedes tener múltiples perfiles:
-
-```yaml
-kind: profile
-name: k3s
-```
-
-```yaml
-kind: profile
-name: hardening
-```
+Se aplican solo si el host los referencia.
 
 ---
 
@@ -78,23 +134,11 @@ profile: noswap
 hostname: k3s-master
 ```
 
-O por defecto:
-
-```yaml
-kind: host
-name: default
-
-profile: default
-hostname: default-node
-```
-
 ---
 
 # ⚙️ Reglas importantes
 
 ## 🔹 `kind`
-
-Define el tipo de documento:
 
 * `base`
 * `profile`
@@ -102,13 +146,13 @@ Define el tipo de documento:
 
 ## 🔹 `name`
 
-* En `host`: MAC (o `default`)
-* En `profile`: nombre del perfil
-* En `base`: identificador libre
+* Host → MAC o `default`
+* Profile → nombre lógico
+* Base → identificador libre
 
 ## 🔹 `profile` / `profiles`
 
-Se define **solo en host**:
+Solo en host:
 
 ```yaml
 profile: noswap
@@ -118,9 +162,8 @@ O múltiples:
 
 ```yaml
 profiles:
-  - base
+  - default
   - noswap
-  - hardening
 ```
 
 ⚠️ Nunca dentro de `autoinstall`
@@ -129,13 +172,11 @@ profiles:
 
 ## 🔹 `hostname`
 
-Se puede definir así:
-
 ```yaml
 hostname: k3s-master
 ```
 
-El sistema lo convierte automáticamente en:
+Se traduce automáticamente a:
 
 ```yaml
 autoinstall:
@@ -145,31 +186,73 @@ autoinstall:
 
 ---
 
-# 🔀 Cómo funciona el merge
+# 🔀 Merge de configuración
 
-El servidor aplica las siguientes reglas:
+Orden de aplicación:
 
-* Diccionarios → merge recursivo
-* Listas → **sobrescribe** (NO concatena)
-* Último valor gana (host > profile > base)
+1. Base
+2. Profiles
+3. Host
+
+Reglas:
+
+* Dict → merge recursivo
+* List → sobrescribe
+* Último gana
+
+---
+
+# 🔐 Esquema de seguridad
+
+El sistema aplica por defecto:
+
+* Disco cifrado con LUKS
+* LVM segmentado (`/`, `/var`, `/var/log`, `/tmp`, etc.)
+* Integración con **Clevis (TPM2 + Tang)**
+
+Este esquema sigue las directrices de:
+
+**CCN-STIC-610-25**
+*Perfilado de seguridad para Distribuciones Linux*
+
+Objetivos:
+
+* Protección de datos en reposo
+* Separación de logs y temporales
+* Preparación para entornos críticos
+
+---
+
+# 🌐 Red inicial
+
+La configuración base incluye:
+
+```yaml
+autoinstall:
+  network:
+    version: 2
+    ethernets:
+      eth0:
+        dhcp4: true
+```
+
+Objetivo:
+
+* Arranque rápido
+* Conectividad mínima
+* Delegar configuración avanzada a Ansible
 
 ---
 
 # 🌐 Endpoints
 
-## Obtener configuración por MAC
+## User-data
 
 ```
 http://<server>/ds/<mac>/user-data
 ```
 
-Ejemplo:
-
-```
-http://192.168.1.70:8081/ds/aa-bb-cc-dd-ee-ff/user-data
-```
-
-## Metadata
+## Meta-data
 
 ```
 http://<server>/ds/<mac>/meta-data
@@ -179,59 +262,17 @@ http://<server>/ds/<mac>/meta-data
 
 # 🚀 Flujo completo
 
-1. Máquina arranca por PXE/iPXE
-2. Ubuntu installer descarga `user-data`
-3. El servidor genera config según:
-
-   * base
-   * perfil
-   * host
-4. Se ejecuta autoinstall
-
----
-
-# 🧩 Ejemplo práctico
-
-## Base
-
-```yaml
-kind: base
-name: network
-
-autoinstall:
-  network:
-    version: 2
-    ethernets:
-      eth0:
-        dhcp4: true
-```
-
-## Profile (noswap)
-
-```yaml
-kind: profile
-name: noswap
-
-autoinstall:
-  late-commands:
-    - swapoff -a
-```
-
-## Host
-
-```yaml
-kind: host
-name: aa-bb-cc-dd-ee-ff
-
-profile: noswap
-hostname: k3s-master
-```
+1. Máquina arranca por red
+2. Carga iPXE
+3. Descarga `boot.ipxe`
+4. Lanza kernel + initrd
+5. Ubuntu descarga `cloud-init`
+6. Se genera config dinámica
+7. Se instala el sistema
 
 ---
 
 # 🧪 Debug
-
-Puedes probar qué genera el sistema con:
 
 ```bash
 curl http://<server>/ds/<mac>/user-data
@@ -243,11 +284,13 @@ curl http://<server>/ds/<mac>/user-data
 
 Este sistema permite:
 
-* Infraestructura reproducible
-* Configuración declarativa
-* Escalar fácilmente con nuevos perfiles
-* Integración con GitOps (ArgoCD)
+* Provisioning totalmente automatizado
+* Seguridad desde el arranque
+* Escalabilidad mediante perfiles
+* Integración con Kubernetes + GitOps
 
 ---
 
+# 🧭 Siguiente paso
 
+Integración con **Ansible** para postconfiguración automática
