@@ -210,15 +210,15 @@ autoinstall:
       printf "%s" "$PASSPHRASE" > "$TMPKEY"
       chmod 600 "$TMPKEY"
 
-      echo "[INFO] Comprobando tokens existentes"
+      echo "[INFO] Tokens existentes antes del bind"
       clevis luks list -d "$LUKS_DEV" || true
       cryptsetup luksDump "$LUKS_DEV" || true
 
-      echo "[INFO] Asegurando bind Tang para primer arranque"
-      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
-        echo "[INFO] Ya existe token Tang"
+      echo "[INFO] Asegurando bind SSS (TPM2 o Tang) para arranque"
+      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi sss; then
+        echo "[INFO] Ya existe token SSS"
       else
-        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
+        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" sss "{\"t\":1,\"pins\":{\"tpm2\":{},\"tang\":{\"url\":\"$TANG_URL\"}}}"
       fi
 
       echo "[INFO] Configurando red en initramfs para Tang"
@@ -263,11 +263,11 @@ autoinstall:
       fi
 
       if [ ! -e /dev/tpmrm0 ] && [ ! -e /dev/tpm0 ]; then
-        echo "[INFO] No hay TPM disponible; se mantiene Tang como método de desbloqueo"
+        echo "[INFO] No hay TPM disponible"
         exit 0
       fi
 
-      echo "[INFO] Comprobando tokens actuales"
+      echo "[INFO] Tokens actuales"
       clevis luks list -d "\$LUKS_DEV" || true
 
       if clevis luks list -d "\$LUKS_DEV" 2>/dev/null | grep -qi tpm2; then
@@ -276,7 +276,7 @@ autoinstall:
       fi
 
       TMPKEY=\$(mktemp)
-      trap '\''rm -f "\$TMPKEY"'\'' EXIT
+      trap 'rm -f "\$TMPKEY"' EXIT
       printf "%s" "\$PASSPHRASE" > "\$TMPKEY"
       chmod 600 "\$TMPKEY"
 
@@ -316,7 +316,7 @@ autoinstall:
         "WantedBy=multi-user.target" \
         > /etc/systemd/system/bind-luks-tpm.service
 
-      systemctl daemon-reload
+      systemctl daemon-reload || true
       systemctl enable bind-luks-tpm.service
 
       echo "[INFO] Estado final"
