@@ -7,4 +7,4 @@ configMapGenerator:
       - 20-profile-default-storage.yaml
       - 20-profile-noswap-storage.yaml
       - 90-host-aa-bb-cc-dd-ee-ff.yaml
-      - provisioning/90-host-default.yaml
+      - 90-host-default.yaml
