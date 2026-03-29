@@ -4,7 +4,9 @@ configMapGenerator:
     files:
       - base/00-installer.yaml
       - base/10-network.yaml
-      - base/20-automation.yaml
+      - base/20-package-installer.yaml
+      - base/30-automation.yaml
+      - base/90-finalize.yaml
       - profiles/20-profile-default-storage.yaml
       - profiles/20-profile-noswap-storage.yaml
       - hosts/90-host-aa-bb-cc-dd-ee-ff.yaml

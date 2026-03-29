@@ -159,89 +159,71 @@ autoinstall:
         device: fs-var
         path: /var
 
-  late-commands:
-    - |
-      curtin in-target --target=/target -- bash -c 'cat >/root/setup-luks-unlock.sh << "EOF"
-      #!/bin/bash
-      set -euxo pipefail
+  user-data:
+    write_files:
+      - path: /usr/local/sbin/profile-postinstall.sh
+        owner: root:root
+        permissions: '0700'
+        content: |
+          #!/bin/bash
+          set -euxo pipefail
 
-      LOGFILE=/root/setup-luks-unlock.log
-      exec > >(tee -a "$LOGFILE") 2>&1
+          LOGFILE=/root/setup-luks-unlock.log
+          exec > >(tee -a "$LOGFILE") 2>&1
 
-      LUKS_DEV="/dev/sda3"
-      PASSPHRASE="InfraK3s-2026"
-      TANG_URL="http://192.168.1.70:8082"
+          LUKS_DEV="/dev/sda3"
+          PASSPHRASE="InfraK3s-2026"
+          TANG_URL="http://192.168.1.70:8082"
 
-      echo "============================================================"
-      echo "[INFO] Inicio de setup-luks-unlock.sh"
-      date
-      echo "============================================================"
+          echo "============================================================"
+          echo "[INFO] Inicio de profile-postinstall.sh"
+          date
+          echo "============================================================"
 
-      export DEBIAN_FRONTEND=noninteractive
+          echo "[INFO] Comprobando dispositivo LUKS"
+          ls -l "$LUKS_DEV"
+          cryptsetup isLuks "$LUKS_DEV"
 
-      echo "[INFO] Instalando paquetes necesarios"
-      apt-get update
-      apt-get install -y \
-        dracut \
-        clevis \
-        clevis-luks \
-        clevis-tpm2 \
-        clevis-dracut \
-        tpm2-tools \
-        cryptsetup \
-        cryptsetup-initramfs \
-        lvm2 \
-        jq
+          TMPKEY=$(mktemp)
+          trap 'rm -f "$TMPKEY"' EXIT
+          printf "%s" "$PASSPHRASE" > "$TMPKEY"
+          chmod 600 "$TMPKEY"
 
-      echo "[INFO] Comprobando dispositivo LUKS"
-      ls -l "$LUKS_DEV"
-      cryptsetup isLuks "$LUKS_DEV"
+          echo "[INFO] Tokens existentes antes del bind"
+          clevis luks list -d "$LUKS_DEV" || true
+          cryptsetup luksDump "$LUKS_DEV" || true
 
-      TMPKEY=$(mktemp)
-      trap '\''rm -f "$TMPKEY"'\'' EXIT
-      printf "%s" "$PASSPHRASE" > "$TMPKEY"
-      chmod 600 "$TMPKEY"
+          echo "[INFO] Asegurando bind SSS (TPM2 o Tang) para arranque"
+          if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi sss; then
+            echo "[INFO] Ya existe token SSS"
+          else
+            clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" sss "{\"t\":1,\"pins\":{\"tpm2\":{},\"tang\":{\"url\":\"$TANG_URL\"}}}"
+          fi
 
-      echo "[INFO] Tokens existentes antes del bind"
-      clevis luks list -d "$LUKS_DEV" || true
-      cryptsetup luksDump "$LUKS_DEV" || true
+          echo "[INFO] Configurando red en initramfs para Tang"
+          mkdir -p /etc/dracut.conf.d
+          cat >/etc/dracut.conf.d/10-network.conf <<EOF
+          hostonly="yes"
+          hostonly_cmdline="yes"
+          kernel_cmdline+=" rd.neednet=1 ip=dhcp "
+          EOF
 
-      echo "[INFO] Asegurando bind SSS (TPM2 o Tang) para arranque"
-      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi sss; then
-        echo "[INFO] Ya existe token SSS"
-      else
-        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" sss "{\"t\":1,\"pins\":{\"tpm2\":{},\"tang\":{\"url\":\"$TANG_URL\"}}}"
-      fi
+          echo "[INFO] Eliminando swap para nodos Kubernetes"
+          swapoff -a || true
+          rm -f /swap.img || true
+          sed -i '\|/swap.img|d' /etc/fstab || true
 
-      echo "[INFO] Configurando red en initramfs para Tang"
-      mkdir -p /etc/dracut.conf.d
-      cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
-      hostonly="yes"
-      hostonly_cmdline="yes"
-      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-      DRACUTEOF
+          echo "[INFO] Detectando kernel instalado"
+          KVER=$(ls /lib/modules | sort | tail -n1)
+          echo "[INFO] Kernel detectado: $KVER"
 
-      echo "[INFO] Eliminando swap para nodos Kubernetes"
-      swapoff -a || true
-      rm -f /swap.img || true
-      sed -i "\|/swap.img|d" /etc/fstab || true
+          echo "[INFO] Generando initramfs con dracut"
+          dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
 
-      echo "[INFO] Detectando kernel instalado"
-      KVER=$(ls /lib/modules | sort | tail -n1)
-      echo "[INFO] Kernel detectado: $KVER"
+          echo "[INFO] Estado final"
+          cat /etc/crypttab || true
+          ls -lah /boot || true
+          clevis luks list -d "$LUKS_DEV" || true
 
-      echo "[INFO] Generando initramfs con dracut"
-      dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
-
-      echo "[INFO] Estado final"
-      cat /etc/crypttab || true
-      ls -lah /boot || true
-      clevis luks list -d "$LUKS_DEV" || true
-
-      echo "[INFO] Fin correcto de setup-luks-unlock.sh"
-      date
-      EOF
-      chmod 700 /root/setup-luks-unlock.sh'
-
-    - |
-      curtin in-target --target=/target -- bash -c '/root/setup-luks-unlock.sh || (echo "[ERROR] Falló /root/setup-luks-unlock.sh"; cat /root/setup-luks-unlock.log || true; exit 1)'
+          echo "[INFO] Fin correcto de profile-postinstall.sh"
+          date

@@ -31,29 +31,6 @@ autoinstall:
     - ca-certificates
     - git
 
-  late-commands:
-    - |
-      IFACE="$(ip route show default | awk '/default/ {print $5}' | head -1)"
-      if [ -n "$IFACE" ] && [ -e "/sys/class/net/$IFACE/address" ]; then
-        MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
-        mkdir -p /target/etc/cloud/cloud.cfg.d
-        printf '%s\n' \
-          'datasource_list: [NoCloud]' \
-          'datasource:' \
-          '  NoCloud:' \
-          "    seedfrom: http://boot.local/ds/${MAC}/" \
-          > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg
-      fi
-
-    - curtin in-target --target=/target -- apt-get update || true
-
-    - |
-      curtin in-target --target=/target -- bash -c '
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y python3 python3-apt curl vim sudo git ansible
-      '
-
   user-data:
     timezone: Europe/Madrid
     package_update: true

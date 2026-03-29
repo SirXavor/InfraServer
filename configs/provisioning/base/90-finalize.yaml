@@ -1,0 +1,25 @@
+kind: base
+name: finalize
+
+autoinstall:
+  version: 1
+
+  late-commands:
+    - |
+      IFACE="$(ip route show default | awk '/default/ {print $5}' | head -1)"
+      if [ -n "$IFACE" ] && [ -e "/sys/class/net/$IFACE/address" ]; then
+        MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
+        mkdir -p /target/etc/cloud/cloud.cfg.d
+        printf '%s\n' \
+          'datasource_list: [NoCloud]' \
+          'datasource:' \
+          '  NoCloud:' \
+          "    seedfrom: http://boot.local/ds/${MAC}/" \
+          > /target/etc/cloud/cloud.cfg.d/99-datasource.cfg
+      fi
+
+    - curtin in-target --target=/target -- /usr/local/sbin/infraserver-install-packages.sh
+    - curtin in-target --target=/target -- systemctl daemon-reload
+    - curtin in-target --target=/target -- bash -c '[ -x /usr/local/sbin/profile-postinstall.sh ] && /usr/local/sbin/profile-postinstall.sh || true'
+    - curtin in-target --target=/target -- systemctl enable ansible-sync.timer
+    - curtin in-target --target=/target -- /usr/local/sbin/ansible-sync.sh
