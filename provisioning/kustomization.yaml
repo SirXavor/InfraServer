@@ -5,15 +5,6 @@ resources:
   - ingress.yaml
   - pvc-iso.yaml
   - job-download.yaml
+  - ../configs/provisioning
 
-configMapGenerator:
-  - name: provisioning-configs
-    namespace: provisioning
-    files:
-      - ../configs/provisioning/00-installer.yaml
-      - ../configs/provisioning/10-network.yaml
-      - ../configs/provisioning/20-profile-default-storage.yaml
-      - ../configs/provisioning/20-profile-noswap-storage.yaml
-      - ../configs/provisioning/90-host-aa-bb-cc-dd-ee-ff.yaml
-      - ../configs/provisioning/90-host-default.yaml
 
