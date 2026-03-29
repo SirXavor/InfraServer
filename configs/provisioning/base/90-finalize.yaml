@@ -20,6 +20,5 @@ autoinstall:
 
     - curtin in-target --target=/target -- /usr/local/sbin/infraserver-install-packages.sh
     - curtin in-target --target=/target -- systemctl daemon-reload
-    - curtin in-target --target=/target -- bash -c '[ -x /usr/local/sbin/profile-postinstall.sh ] && /usr/local/sbin/profile-postinstall.sh || true'
     - curtin in-target --target=/target -- systemctl enable ansible-sync.timer
     - curtin in-target --target=/target -- /usr/local/sbin/ansible-sync.sh
