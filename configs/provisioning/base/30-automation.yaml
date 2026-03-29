@@ -6,7 +6,7 @@ autoinstall:
 
   user-data:
     write_files:
-      - path: /usr/local/sbin/ansible-sync.sh
+      - path: /target/usr/local/sbin/ansible-sync.sh
         owner: root:root
         permissions: '0755'
         content: |
@@ -14,10 +14,9 @@ autoinstall:
           set -euxo pipefail
 
           LOG_FILE="/var/log/ansible-bootstrap.log"
-          REPO_URL="http://tu-gitea/InfraServer.git"
+          REPO_URL="https://github.com/SirXavor/InfraServer.git"
           REPO_DIR="/opt/InfraServer"
           CFG_DIR="/etc/infraserver"
-          BOOT_HOST="192.168.1.70"
 
           exec > >(tee -a "$LOG_FILE") 2>&1
 
@@ -25,45 +24,43 @@ autoinstall:
 
           mkdir -p "$CFG_DIR"
 
-          echo "[1/5] Esperando conectividad de red..."
-          NETWORK_OK=0
+          echo "[1/6] Esperando conectividad de red..."
           for i in $(seq 1 30); do
-            if ping -c1 "$BOOT_HOST" >/dev/null 2>&1; then
+            if ping -c1 192.168.1.70 >/dev/null 2>&1; then
               echo "Red OK"
-              NETWORK_OK=1
               break
             fi
             echo "Intento $i/30: red aun no disponible"
             sleep 5
           done
 
-          if [ "$NETWORK_OK" -ne 1 ]; then
-            echo "ERROR: no hay conectividad con $BOOT_HOST"
-            exit 1
-          fi
-
-          echo "[2/5] Detectando MAC..."
+          echo "[2/6] Detectando MAC..."
           MAC=$(ip link show | awk '/link\/ether/ {print $2; exit}' | tr ':' '-')
           echo "MAC detectada: $MAC"
 
-          echo "[3/5] Descargando variables de Ansible..."
+          echo "[3/6] Instalando dependencias..."
+          export DEBIAN_FRONTEND=noninteractive
+          apt-get update
+          apt-get install -y git ansible curl python3
+
+          echo "[4/6] Descargando variables de Ansible..."
           curl -fsSL "http://boot.local/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
 
-          echo "[4/5] Sincronizando repositorio..."
+          echo "[5/6] Sincronizando repositorio..."
           if [ ! -d "$REPO_DIR/.git" ]; then
             git clone "$REPO_URL" "$REPO_DIR"
           else
             git -C "$REPO_DIR" pull --ff-only
           fi
 
-          echo "[5/5] Ejecutando playbook..."
+          echo "[6/6] Ejecutando playbook..."
           ansible-playbook -i localhost, -c local \
             "$REPO_DIR/configs/ansible/playbooks/bootstrap.yml" \
             -e @"$CFG_DIR/ansible.yml"
 
           echo "===== $(date) :: fin ansible-sync ====="
 
-      - path: /etc/systemd/system/ansible-sync.service
+      - path: /target/etc/systemd/system/ansible-sync.service
         owner: root:root
         permissions: '0644'
         content: |
@@ -76,7 +73,7 @@ autoinstall:
           Type=oneshot
           ExecStart=/usr/local/sbin/ansible-sync.sh
 
-      - path: /etc/systemd/system/ansible-sync.timer
+      - path: /target/etc/systemd/system/ansible-sync.timer
         owner: root:root
         permissions: '0644'
         content: |
@@ -90,3 +87,7 @@ autoinstall:
 
           [Install]
           WantedBy=timers.target
+
+  late-commands:
+    - curtin in-target --target=/target -- systemctl daemon-reload
+    - curtin in-target --target=/target -- /usr/local/sbin/ansible-sync.sh
