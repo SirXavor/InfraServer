@@ -1,0 +1,20 @@
+- name: Bootstrap localhost
+  hosts: localhost
+  connection: local
+  become: true
+  gather_facts: true
+
+  tasks:
+    - name: Apt update
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Apt upgrade
+      apt:
+        upgrade: dist
+
+    - name: Ejecutar roles definidos
+      include_role:
+        name: "{{ item }}"
+      loop: "{{ automation.roles | default([]) }}"
