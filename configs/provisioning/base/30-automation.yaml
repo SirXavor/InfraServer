@@ -7,7 +7,7 @@ autoinstall:
   user-data:
     write_files:
 
-      - path: /target/usr/local/sbin/ansible-sync.sh
+      - path: /usr/local/sbin/ansible-sync.sh
         owner: root:root
         permissions: '0755'
         content: |
@@ -61,7 +61,7 @@ autoinstall:
 
           echo "===== $(date) :: fin ansible-sync ====="
 
-      - path: /target/etc/systemd/system/ansible-sync.service
+      - path: /etc/systemd/system/ansible-sync.service
         owner: root:root
         permissions: '0644'
         content: |
@@ -74,7 +74,7 @@ autoinstall:
           Type=oneshot
           ExecStart=/usr/local/sbin/ansible-sync.sh
 
-      - path: /target/etc/systemd/system/ansible-sync.timer
+      - path: /etc/systemd/system/ansible-sync.timer
         owner: root:root
         permissions: '0644'
         content: |
