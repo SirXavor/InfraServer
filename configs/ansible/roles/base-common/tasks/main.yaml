@@ -1,0 +1,14 @@
+- name: Instalar htop
+  apt:
+    name: htop
+    state: present
+
+- name: Crear fichero de prueba
+  copy:
+    dest: /etc/infraserver-host.txt
+    content: |
+      hostname={{ hostname | default('sin-hostname') }}
+      mensaje={{ automation.vars.test_message | default('sin-mensaje') }}
+    owner: root
+    group: root
+    mode: '0644'

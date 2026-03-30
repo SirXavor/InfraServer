@@ -6,6 +6,7 @@ autoinstall:
 
   user-data:
     write_files:
+
       - path: /target/usr/local/sbin/ansible-sync.sh
         owner: root:root
         permissions: '0755'
@@ -55,7 +56,7 @@ autoinstall:
 
           echo "[6/6] Ejecutando playbook..."
           ansible-playbook -i localhost, -c local \
-            "$REPO_DIR/configs/ansible/playbooks/bootstrap.yml" \
+            "$REPO_DIR/configs/ansible/playbooks/bootstrap.yaml" \
             -e @"$CFG_DIR/ansible.yml"
 
           echo "===== $(date) :: fin ansible-sync ====="
@@ -90,4 +91,9 @@ autoinstall:
 
   late-commands:
     - curtin in-target --target=/target -- systemctl daemon-reload
+
+    # Primera ejecución inmediata (PRUEBA)
     - curtin in-target --target=/target -- /usr/local/sbin/ansible-sync.sh
+
+    # Para producción (cuando ya funcione):
+    # - curtin in-target --target=/target -- systemctl enable ansible-sync.timer
