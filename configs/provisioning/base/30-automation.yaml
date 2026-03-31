@@ -3,93 +3,77 @@ name: automation
 
 autoinstall:
   version: 1
-
-  user-data:
-    write_files:
-
-      - path: /usr/local/sbin/ansible-sync.sh
-        owner: root:root
-        permissions: '0755'
-        content: |
-          #!/bin/bash
-          set -euxo pipefail
-
-          LOG_FILE="/var/log/ansible-bootstrap.log"
-          REPO_URL="https://github.com/SirXavor/InfraServer.git"
-          REPO_DIR="/opt/InfraServer"
-          CFG_DIR="/etc/infraserver"
-
-          exec > >(tee -a "$LOG_FILE") 2>&1
-
-          echo "===== $(date) :: inicio ansible-sync ====="
-
-          mkdir -p "$CFG_DIR"
-
-          echo "[1/6] Esperando conectividad de red..."
-          for i in $(seq 1 30); do
-            if ping -c1 192.168.1.70 >/dev/null 2>&1; then
-              echo "Red OK"
-              break
-            fi
-            echo "Intento $i/30: red aun no disponible"
-            sleep 5
-          done
-
-          echo "[2/6] Detectando MAC..."
-          MAC=$(ip link show | awk '/link\/ether/ {print $2; exit}' | tr ':' '-')
-          echo "MAC detectada: $MAC"
-
-          echo "[3/6] Instalando dependencias..."
-          export DEBIAN_FRONTEND=noninteractive
-          apt-get update
-          apt-get install -y git ansible curl python3
-
-          echo "[4/6] Descargando variables de Ansible..."
-          curl -fsSL "http://boot.local/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
-
-          echo "[5/6] Sincronizando repositorio..."
-          if [ ! -d "$REPO_DIR/.git" ]; then
-            git clone "$REPO_URL" "$REPO_DIR"
-          else
-            git -C "$REPO_DIR" pull --ff-only
-          fi
-
-          echo "[6/6] Ejecutando playbook..."
-          ansible-playbook -i localhost, -c local \
-            "$REPO_DIR/configs/ansible/playbooks/bootstrap.yaml" \
-            -e @"$CFG_DIR/ansible.yml"
-
-          echo "===== $(date) :: fin ansible-sync ====="
-
-      - path: /etc/systemd/system/ansible-sync.service
-        owner: root:root
-        permissions: '0644'
-        content: |
-          [Unit]
-          Description=InfraServer Ansible Sync
-          Wants=network-online.target
-          After=network-online.target
-
-          [Service]
-          Type=oneshot
-          ExecStart=/usr/local/sbin/ansible-sync.sh
-
-      - path: /etc/systemd/system/ansible-sync.timer
-        owner: root:root
-        permissions: '0644'
-        content: |
-          [Unit]
-          Description=Run InfraServer Ansible Sync periodically
-
-          [Timer]
-          OnBootSec=10min
-          OnUnitActiveSec=1h
-          Persistent=true
-
-          [Install]
-          WantedBy=timers.target
-
   late-commands:
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-sync.sh << "EOF"
+      #!/bin/bash
+      set -euxo pipefail
+
+      LOG_FILE="/var/log/ansible-bootstrap.log"
+      REPO_URL="https://github.com/SirXavor/InfraServer.git"
+      REPO_DIR="/opt/InfraServer"
+      CFG_DIR="/etc/infraserver"
+
+      exec > >(tee -a "$LOG_FILE") 2>&1
+
+      echo "===== $(date) :: inicio ansible-sync ====="
+
+      mkdir -p "$CFG_DIR"
+
+      echo "[1/5] Detectando MAC..."
+      MAC=$(ip link show | awk "/link\\/ether/ {print \$2; exit}" | tr ":" "-")
+      echo "MAC detectada: $MAC"
+
+      echo "[2/5] Instalando dependencias..."
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y git ansible curl python3
+
+      echo "[3/5] Descargando variables de Ansible..."
+      curl -fsSL "http://192.168.1.70:8081/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
+
+      echo "[4/5] Sincronizando repositorio..."
+      if [ ! -d "$REPO_DIR/.git" ]; then
+        git clone "$REPO_URL" "$REPO_DIR"
+      else
+        git -C "$REPO_DIR" pull --ff-only
+      fi
+
+      echo "[5/5] Ejecutando playbook..."
+      ansible-playbook -i localhost, -c local \
+        "$REPO_DIR/configs/ansible/playbooks/bootstrap.yaml" \
+        -e @"$CFG_DIR/ansible.yml"
+
+      echo "===== $(date) :: fin ansible-sync ====="
+      EOF
+      chmod 755 /usr/local/sbin/ansible-sync.sh'
+
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/systemd/system/ansible-sync.service << "EOF"
+      [Unit]
+      Description=InfraServer Ansible Sync
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/ansible-sync.sh
+      EOF'
+
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /etc/systemd/system/ansible-sync.timer << "EOF"
+      [Unit]
+      Description=Run InfraServer Ansible Sync periodically
+
+      [Timer]
+      OnBootSec=10min
+      OnUnitActiveSec=1h
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+      EOF'
+
     - curtin in-target --target=/target -- systemctl daemon-reload
 
     # Primera ejecución inmediata (PRUEBA)
