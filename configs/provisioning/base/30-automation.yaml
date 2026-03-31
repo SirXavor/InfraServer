@@ -40,9 +40,8 @@ autoinstall:
       fi
 
       echo "[5/5] Ejecutando playbook..."
-      ansible-playbook -i localhost, -c local \
-        "$REPO_DIR/configs/ansible/playbooks/bootstrap.yaml" \
-        -e @"$CFG_DIR/ansible.yml"
+      cd "$REPO_DIR/configs/ansible"
+      ansible-playbook -i localhost, -c local playbooks/bootstrap.yaml -e @"$CFG_DIR/ansible.yml"
 
       echo "===== $(date) :: fin ansible-sync ====="
       EOF
