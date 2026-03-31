@@ -1,0 +1,25 @@
+- name: Crear usuarios
+  user:
+    name: "{{ item.name }}"
+    password: "{{ item.password }}"
+    groups: "{{ item.groups | join(',') }}"
+    append: yes
+    shell: /bin/bash
+    state: present
+  loop: "{{ automation.vars.users | default([]) }}"
+
+- name: Crear .ssh directory
+  file:
+    path: "/home/{{ item.name }}/.ssh"
+    state: directory
+    owner: "{{ item.name }}"
+    group: "{{ item.name }}"
+    mode: '0700'
+  loop: "{{ automation.vars.users | default([]) }}"
+
+- name: Añadir claves SSH
+  authorized_key:
+    user: "{{ item.0.name }}"
+    key: "{{ item.1 }}"
+    state: present
+  loop: "{{ automation.vars.users | subelements('ssh_keys', skip_missing=True) }}"

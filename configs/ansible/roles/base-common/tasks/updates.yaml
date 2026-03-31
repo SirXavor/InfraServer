@@ -1,0 +1,52 @@
+- name: Instalar script de actualización
+  copy:
+    dest: /usr/local/sbin/auto-update.sh
+    owner: root
+    group: root
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+      apt-get update
+      apt-get upgrade -y
+
+- name: Instalar servicio systemd de actualización
+  copy:
+    dest: /etc/systemd/system/auto-update.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Actualización automática del sistema
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/auto-update.sh
+
+- name: Instalar timer systemd de actualización
+  copy:
+    dest: /etc/systemd/system/auto-update.timer
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Timer diario de actualización
+
+      [Timer]
+      OnCalendar=daily
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Recargar systemd
+  systemd:
+    daemon_reload: true
+
+- name: Habilitar y arrancar timer
+  systemd:
+    name: auto-update.timer
+    enabled: true
+    state: started
