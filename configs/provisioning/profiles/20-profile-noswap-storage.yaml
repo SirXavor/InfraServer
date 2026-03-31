@@ -179,17 +179,16 @@ autoinstall:
 
       export DEBIAN_FRONTEND=noninteractive
 
-      echo "[INFO] Instalando paquetes necesarios"
+      echo "[INFO] Instalando paquetes necesarios (Ubuntu/initramfs-tools)"
       apt-get update
       apt-get install -y \
-        dracut \
         clevis \
         clevis-luks \
         clevis-tpm2 \
-        clevis-dracut \
         tpm2-tools \
         cryptsetup \
         cryptsetup-initramfs \
+        initramfs-tools \
         lvm2 \
         jq
 
@@ -213,30 +212,29 @@ autoinstall:
         clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" sss "{\"t\":1,\"pins\":{\"tpm2\":{},\"tang\":{\"url\":\"$TANG_URL\"}}}"
       fi
 
-      echo "[INFO] Configurando red en initramfs para Tang"
-      mkdir -p /etc/dracut.conf.d
-      cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
-      hostonly="yes"
-      hostonly_cmdline="yes"
-      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-      DRACUTEOF
+      echo "[INFO] Configurando kernel cmdline para initramfs-tools"
+      mkdir -p /etc/initramfs-tools/conf.d
+      cat >/etc/initramfs-tools/conf.d/network.conf <<INITRAMFSEOF
+      IP=dhcp
+      DEVICE=
+      BOOT=local
+      INITRAMFSEOF
 
       echo "[INFO] Eliminando swap para nodos Kubernetes"
       swapoff -a || true
       rm -f /swap.img || true
       sed -i "\|/swap.img|d" /etc/fstab || true
 
-      echo "[INFO] Detectando kernel instalado"
-      KVER=$(ls /lib/modules | sort | tail -n1)
-      echo "[INFO] Kernel detectado: $KVER"
-
-      echo "[INFO] Generando initramfs con dracut"
-      dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
+      echo "[INFO] Regenerando initramfs con update-initramfs"
+      update-initramfs -u -k all
 
       echo "[INFO] Estado final"
       cat /etc/crypttab || true
       ls -lah /boot || true
       clevis luks list -d "$LUKS_DEV" || true
+
+      echo "[INFO] Contenido clevis en initramfs (si existe)"
+      lsinitramfs /boot/initrd.img-$(uname -r) | grep -Ei "clevis|crypt|luks|network" || true
 
       echo "[INFO] Fin correcto de setup-luks-unlock.sh"
       date
