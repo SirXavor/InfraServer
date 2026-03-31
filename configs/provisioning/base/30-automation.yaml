@@ -76,7 +76,12 @@ autoinstall:
     - curtin in-target --target=/target -- systemctl daemon-reload
 
     # Primera ejecución inmediata (PRUEBA)
-    - curtin in-target --target=/target -- /usr/local/sbin/ansible-sync.sh
+    - |
+      curtin in-target --target=/target -- bash -c '/usr/local/sbin/ansible-sync.sh || (
+        echo "[ERROR] Falló ansible-sync.sh";
+        cat /var/log/ansible-bootstrap.log || true;
+        exit 1
+      )'
 
     # Para producción (cuando ya funcione):
     # - curtin in-target --target=/target -- systemctl enable ansible-sync.timer
