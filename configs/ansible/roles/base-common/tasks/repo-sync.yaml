@@ -1,0 +1,81 @@
+- name: Crear directorio de logs de InfraServer
+  file:
+    path: /var/log/infraserver
+    state: directory
+    owner: root
+    group: root
+    mode: '0755'
+
+- name: Instalar script de sincronización del repositorio
+  copy:
+    dest: /usr/local/sbin/infraserver-repo-sync.sh
+    owner: root
+    group: root
+    mode: '0755'
+    content: |
+      #!/bin/bash
+      set -euo pipefail
+
+      LOG_FILE="/var/log/infraserver/repo-sync.log"
+      REPO_URL="{{ automation.repo.url }}"
+      REPO_DIR="{{ automation.repo.local_path | default('/opt/InfraServer') }}"
+      REPO_BRANCH="{{ automation.repo.branch | default('main') }}"
+
+      exec >>"$LOG_FILE" 2>&1
+
+      echo "===== $(date) :: inicio repo-sync ====="
+
+      if [ ! -d "$REPO_DIR/.git" ]; then
+        mkdir -p "$(dirname "$REPO_DIR")"
+        git clone -b "$REPO_BRANCH" "$REPO_URL" "$REPO_DIR"
+      else
+        git -C "$REPO_DIR" fetch --all --prune
+        git -C "$REPO_DIR" checkout "$REPO_BRANCH"
+        git -C "$REPO_DIR" pull --ff-only origin "$REPO_BRANCH"
+      fi
+
+      echo "===== $(date) :: fin repo-sync ====="
+
+- name: Instalar servicio systemd de sincronización del repositorio
+  copy:
+    dest: /etc/systemd/system/infraserver-repo-sync.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=InfraServer Repository Sync
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/infraserver-repo-sync.sh
+
+- name: Instalar timer systemd de sincronización del repositorio
+  copy:
+    dest: /etc/systemd/system/infraserver-repo-sync.timer
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=Run InfraServer Repository Sync periodically
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec={{ automation.repo.sync_interval | default('1h') }}
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+
+- name: Recargar systemd
+  systemd:
+    daemon_reload: true
+
+- name: Habilitar y arrancar timer de sincronización del repositorio
+  systemd:
+    name: infraserver-repo-sync.timer
+    enabled: true
+    state: started

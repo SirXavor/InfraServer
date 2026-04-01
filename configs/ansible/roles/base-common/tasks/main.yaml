@@ -1,2 +1,4 @@
+- import_tasks: repo-sync.yaml
+- import_tasks: playbook-runner.yaml
 - import_tasks: users.yaml
 - import_tasks: updates.yaml

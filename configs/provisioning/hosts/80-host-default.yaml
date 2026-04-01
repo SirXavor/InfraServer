@@ -3,3 +3,10 @@ name: default
 
 profile: default
 hostname: default-node
+
+automation:
+  repo:
+    url: "https://github.com/SirXavor/InfraServer.git"
+    local_path: "/opt/InfraServer"
+    branch: "main"
+    sync_interval: "1h"    
