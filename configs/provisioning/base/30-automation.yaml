@@ -6,48 +6,62 @@ autoinstall:
 
   late-commands:
     - |
-      curtin in-target --target=/target -- bash -c 'mkdir -p /etc/infraserver && cat > /etc/infraserver/bootstrap.env << "EOF"
+      curtin in-target --target=/target -- bash -c '
+      export DEBIAN_FRONTEND=noninteractive
+      apt-get update
+      apt-get install -y git ansible curl python3 python3-apt ca-certificates
+      '
+
+    - |
+      curtin in-target --target=/target -- bash -c '
+      mkdir -p /etc/infraserver /var/log/infraserver
+      cat > /etc/infraserver/bootstrap.env << "EOF"
       DS_URL="http://192.168.1.70:8081"
       CFG_DIR="/etc/infraserver"
+      REPO_URL="https://github.com/SirXavor/InfraServer.git"
+      REPO_DIR="/opt/InfraServer"
       EOF
-      chmod 600 /etc/infraserver/bootstrap.env'
+      chmod 600 /etc/infraserver/bootstrap.env
+      '
+
+    - |
+      curtin in-target --target=/target -- bash -c '
+      source /etc/infraserver/bootstrap.env
+      if [ ! -d "$REPO_DIR/.git" ]; then
+        git clone "$REPO_URL" "$REPO_DIR"
+      fi
+      '
 
     - |
       curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-sync.sh << "EOF"
       #!/bin/bash
-      set -euxo pipefail
+      set -euo pipefail
 
-      LOG_FILE="/var/log/ansible-bootstrap.log"
-      REPO_URL="https://github.com/SirXavor/InfraServer.git"
-      REPO_DIR="/opt/InfraServer"
-      CFG_DIR="/etc/infraserver"
+      source /etc/infraserver/bootstrap.env
 
-      exec > >(tee -a "$LOG_FILE") 2>&1
+      LOG_FILE="/var/log/infraserver/ansible-sync.log"
+
+      exec >>"$LOG_FILE" 2>&1
 
       echo "===== $(date) :: inicio ansible-sync ====="
 
       mkdir -p "$CFG_DIR"
 
-      echo "[1/5] Detectando MAC..."
+      echo "[1/4] Detectando MAC..."
       MAC=$(ip link show | awk "/link\\/ether/ {print \$2; exit}" | tr ":" "-")
       echo "MAC detectada: $MAC"
 
-      echo "[2/5] Instalando dependencias..."
-      export DEBIAN_FRONTEND=noninteractive
-      apt-get update
-      apt-get install -y git ansible curl python3
+      echo "[2/4] Descargando variables del host..."
+      curl -fsSL "${DS_URL}/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
 
-      echo "[3/5] Descargando variables de Ansible..."
-      curl -fsSL "http://192.168.1.70:8081/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
-
-      echo "[4/5] Sincronizando repositorio..."
+      echo "[3/4] Sincronizando repositorio..."
       if [ ! -d "$REPO_DIR/.git" ]; then
         git clone "$REPO_URL" "$REPO_DIR"
       else
         git -C "$REPO_DIR" pull --ff-only
       fi
 
-      echo "[5/5] Ejecutando playbook..."
+      echo "[4/4] Ejecutando playbook..."
       cd "$REPO_DIR/configs/ansible"
       ansible-playbook -i localhost, -c local playbooks/bootstrap.yaml -e @"$CFG_DIR/ansible.yml"
 
@@ -73,7 +87,7 @@ autoinstall:
       Description=Run InfraServer Ansible Sync periodically
 
       [Timer]
-      OnBootSec=10min
+      OnBootSec=2min
       OnUnitActiveSec=1h
       Persistent=true
 
