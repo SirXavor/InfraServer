@@ -2,7 +2,7 @@
   user:
     name: "{{ item.name }}"
     password: "{{ item.password }}"
-    groups: "{{ item.groups | join(',') }}"
+    groups: "{{ item.groups | default([]) | join(',') }}"
     append: yes
     shell: /bin/bash
     state: present

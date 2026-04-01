@@ -3,7 +3,15 @@ name: automation
 
 autoinstall:
   version: 1
+
   late-commands:
+    - |
+      curtin in-target --target=/target -- bash -c 'mkdir -p /etc/infraserver && cat > /etc/infraserver/bootstrap.env << "EOF"
+      DS_URL="http://192.168.1.70:8081"
+      CFG_DIR="/etc/infraserver"
+      EOF
+      chmod 600 /etc/infraserver/bootstrap.env'
+
     - |
       curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-sync.sh << "EOF"
       #!/bin/bash
@@ -74,6 +82,4 @@ autoinstall:
       EOF'
 
     - curtin in-target --target=/target -- systemctl daemon-reload
-
-    # Para producción (cuando ya funcione):
     - curtin in-target --target=/target -- systemctl enable ansible-sync.timer

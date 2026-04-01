@@ -8,11 +8,11 @@
       #!/bin/bash
       set -euo pipefail
 
+      source /etc/infraserver/bootstrap.env
+
       LOG_FILE="/var/log/infraserver/apply.log"
-      CFG_DIR="/etc/infraserver"
       REPO_DIR="{{ automation.repo.local_path | default('/opt/InfraServer') }}"
       PLAYBOOK="{{ automation.apply.playbook | default('playbooks/bootstrap.yaml') }}"
-      DS_URL="{{ automation.ds.url | default('http://192.168.1.70:8081') }}"
 
       exec >>"$LOG_FILE" 2>&1
 

@@ -10,3 +10,8 @@ automation:
     local_path: "/opt/InfraServer"
     branch: "main"
     sync_interval: "1h"    
+  
+  apply:
+    playbook: playbooks/bootstrap.yaml
+    interval: 1h
+
