@@ -1,130 +1,152 @@
-# Provisioning dinámico con Cloud-Init + perfiles
+# Provisioning dinámico con Cloud-Init
 
-Este sistema permite generar automáticamente configuraciones `cloud-init` (autoinstall de Ubuntu) a partir de:
+Este módulo se encarga exclusivamente de la **instalación del sistema operativo (Día 0)**.
 
-* Configuración base
-* Perfiles reutilizables
-* Overrides por host (MAC)
+Su función es preparar la máquina con:
 
-Además, forma parte de una **arquitectura completa de provisioning**, incluyendo arranque por red (PXE / HTTP Boot).
+* Sistema base instalado
+* Red mínima funcional
+* Disco configurado (LUKS + LVM)
+* Acceso inicial (SSH)
+* Bootstrap de Ansible
+
+A partir de ese momento, **toda la configuración evolutiva pasa a Ansible (Día 1+)**.
 
 ---
 
 # 🧠 Concepto general
 
-La configuración final se construye así:
+La configuración `cloud-init` se construye dinámicamente mediante:
 
 ```
 BASE → PROFILE(s) → HOST
 ```
 
-* **Base**: configuración común a todos los nodos
-* **Profiles**: comportamientos opcionales (ej: `noswap`, `default`, `k3s`, etc.)
-* **Host**: personalización final (hostname, selección de perfil, etc.)
+* **Base**: configuración común obligatoria
+* **Profiles**: variaciones reutilizables (ej: storage)
+* **Host**: personalización final (hostname, roles, etc.)
+
+👉 Este sistema SOLO define el estado inicial.
+
+---
+
+# ⚠️ Responsabilidades de provisioning vs Ansible
+
+## 🔹 Provisioning (este módulo)
+
+Debe encargarse únicamente de:
+
+* Instalación del sistema
+* Configuración de disco
+* Configuración mínima de red
+* Acceso SSH
+* Arranque de Ansible
+
+## 🔹 Ansible (configs/ansible)
+
+Debe encargarse de:
+
+* Usuarios
+* Hardening
+* Paquetes
+* Servicios
+* Configuración continua
+* Automatización periódica
+
+👉 Regla clave:
+
+> Si algo puede cambiar con el tiempo → va en Ansible
 
 ---
 
 # 🏗️ Arquitectura de Provisioning
 
-**Objetivo:** provisioning modular compatible con **PXE clásico** y **HTTP Boot**.
+Este módulo forma parte de una arquitectura mayor de arranque por red.
 
 ## kernel-provisioning
 
-Sirve contenido por **HTTP (nginx)**.
+Sirve contenido por HTTP.
 
-**Contenido:**
+Contenido:
 
-* `vmlinuz`
-* `initrd`
-* `ipxe/boot.ipxe`
-* `ipxe/menu.ipxe`
-* `ds/<mac>/user-data`
-* `ds/<mac>/meta-data`
+* Kernel (`vmlinuz`)
+* Initrd (`initrd`)
+* Scripts iPXE
+* Endpoints dinámicos de cloud-init
 
-Se expone vía **Ingress** en:
+Endpoints:
 
 ```
-boot.local
+http://boot.local/ds/<mac>/user-data
+http://boot.local/ds/<mac>/meta-data
 ```
 
-Este componente incluye el servidor Python que genera dinámicamente el `cloud-init`.
+Incluye el servidor que genera configuraciones dinámicas.
 
 ---
 
 ## tftp-provisioning
 
-Sirve contenido por **TFTP (xinetd + tftp-hpa)**.
+Sirve arranque PXE clásico.
 
-**Contenido:**
+Contenido:
 
-* `undionly.kpxe` → BIOS PXE → iPXE
-* `ipxe.efi` → UEFI PXE → iPXE
-
-Se expone mediante:
-
-```
-hostPort: 69/udp
-```
-
-(en el nodo del cluster).
+* `undionly.kpxe`
+* `ipxe.efi`
 
 ---
 
-# 🔄 Flujos de arranque soportados
+# 🔄 Flujos de arranque
 
-## PXE clásico (BIOS / UEFI)
+## PXE clásico
 
 ```
 DHCP
-  → TFTP (undionly.kpxe / ipxe.efi)
-  → iPXE
-  → HTTP (boot.local/ipxe/boot.ipxe)
-  → autoinstall
+→ TFTP
+→ iPXE
+→ HTTP
+→ autoinstall
 ```
 
-## HTTP Boot (UEFI)
+## HTTP Boot
 
 ```
 UEFI
-  → http://boot.local/ipxe/boot.ipxe
-  → autoinstall
+→ HTTP
+→ autoinstall
 ```
 
 ---
 
 # 📁 Modelo de configuración
 
-Todos los YAML viven juntos, pero se diferencian por cabeceras.
+Todos los YAML se combinan dinámicamente.
 
 ## Tipos de documentos
 
-### 1. Base
+### Base
 
 ```yaml
 kind: base
 name: installer
-
-...contenido cloud-init...
 ```
 
-Se aplican **todos** los `kind: base`.
+Se aplican todos.
 
 ---
 
-### 2. Profile
+### Profile
 
 ```yaml
 kind: profile
 name: noswap
-
-...contenido cloud-init...
 ```
 
-Se aplican solo si el host los referencia.
+Se aplican según el host.
 
 ---
 
-### 3. Host
+### Host
 
 ```yaml
 kind: host
@@ -136,29 +158,21 @@ hostname: k3s-master
 
 ---
 
-# ⚙️ Reglas importantes
+# ⚙️ Reglas
 
-## 🔹 `kind`
+## kind
 
-* `base`
-* `profile`
-* `host`
+* base
+* profile
+* host
 
-## 🔹 `name`
+## name
 
-* Host → MAC o `default`
+* Host → MAC o default
 * Profile → nombre lógico
-* Base → identificador libre
+* Base → libre
 
-## 🔹 `profile` / `profiles`
-
-Solo en host:
-
-```yaml
-profile: noswap
-```
-
-O múltiples:
+## profiles
 
 ```yaml
 profiles:
@@ -166,29 +180,11 @@ profiles:
   - noswap
 ```
 
-⚠️ Nunca dentro de `autoinstall`
-
 ---
 
-## 🔹 `hostname`
+# 🔀 Merge
 
-```yaml
-hostname: k3s-master
-```
-
-Se traduce automáticamente a:
-
-```yaml
-autoinstall:
-  identity:
-    hostname: k3s-master
-```
-
----
-
-# 🔀 Merge de configuración
-
-Orden de aplicación:
+Orden:
 
 1. Base
 2. Profiles
@@ -196,101 +192,86 @@ Orden de aplicación:
 
 Reglas:
 
-* Dict → merge recursivo
+* Dict → merge
 * List → sobrescribe
 * Último gana
 
 ---
 
-# 🔐 Esquema de seguridad
+# 🔐 Almacenamiento
 
-El sistema aplica por defecto:
+Provisioning define completamente el disco:
 
-* Disco cifrado con LUKS
-* LVM segmentado (`/`, `/var`, `/var/log`, `/tmp`, etc.)
-* Integración con **Clevis (TPM2 + Tang)**
+* GPT
+* LUKS
+* LVM
+* Separación de volúmenes
 
-Este esquema sigue las directrices de:
-
-**CCN-STIC-610-25**
-*Perfilado de seguridad para Distribuciones Linux*
-
-Objetivos:
-
-* Protección de datos en reposo
-* Separación de logs y temporales
-* Preparación para entornos críticos
+👉 Esto NO debe moverse a Ansible
 
 ---
 
-# 🌐 Red inicial
+# 🌐 Red
 
-La configuración base incluye:
+Configuración mínima:
 
 ```yaml
-autoinstall:
-  network:
-    version: 2
-    ethernets:
-      eth0:
-        dhcp4: true
+eth0:
+  dhcp4: true
 ```
 
-Objetivo:
-
-* Arranque rápido
-* Conectividad mínima
-* Delegar configuración avanzada a Ansible
+👉 Todo lo avanzado va en Ansible
 
 ---
 
-# 🌐 Endpoints
+# 🚀 Bootstrap de Ansible
 
-## User-data
+Provisioning instala y lanza el sistema de convergencia:
 
-```
-http://<server>/ds/<mac>/user-data
-```
+* Instala dependencias (ansible, git)
+* Clona el repositorio
+* Define configuración base (`/etc/infraserver/bootstrap.env`)
+* Arranca el servicio `ansible-sync`
 
-## Meta-data
-
-```
-http://<server>/ds/<mac>/meta-data
-```
+👉 Este servicio es el puente entre Día 0 y Día 1
 
 ---
 
 # 🚀 Flujo completo
 
-1. Máquina arranca por red
-2. Carga iPXE
-3. Descarga `boot.ipxe`
-4. Lanza kernel + initrd
-5. Ubuntu descarga `cloud-init`
-6. Se genera config dinámica
-7. Se instala el sistema
+1. Arranque por red
+2. Descarga kernel/initrd
+3. Cloud-init dinámico
+4. Instalación del sistema
+5. Arranque de Ansible
+6. Convergencia del sistema
 
 ---
 
 # 🧪 Debug
 
 ```bash
-curl http://<server>/ds/<mac>/user-data
+curl http://boot.local/ds/<mac>/user-data
 ```
 
 ---
 
 # 🎯 Objetivo
 
-Este sistema permite:
-
-* Provisioning totalmente automatizado
-* Seguridad desde el arranque
-* Escalabilidad mediante perfiles
-* Integración con Kubernetes + GitOps
+* Instalación reproducible
+* Seguridad desde el inicio
+* Separación clara de responsabilidades
+* Base para automatización completa
 
 ---
 
-# 🧭 Siguiente paso
+# 🧭 Relación con otros módulos
 
-Integración con **Ansible** para postconfiguración automática
+* `configs/ansible` → configuración continua
+* `provisioning/` → servicios de arranque
+* `dnsmasq/` → DHCP
+* `coredns/` → resolución
+
+---
+
+👉 Este módulo no configura sistemas: los prepara para ser configurados.
