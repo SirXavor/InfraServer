@@ -8,7 +8,7 @@
     state: present
   loop: "{{ automation.vars.users | default([]) }}"
 
-- name: Crear .ssh directory
+- name: Crear directorio .ssh
   file:
     path: "/home/{{ item.name }}/.ssh"
     state: directory
@@ -16,6 +16,7 @@
     group: "{{ item.name }}"
     mode: '0700'
   loop: "{{ automation.vars.users | default([]) }}"
+  when: item.ssh_keys is defined
 
 - name: Añadir claves SSH
   authorized_key:

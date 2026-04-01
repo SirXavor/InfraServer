@@ -33,39 +33,60 @@ autoinstall:
       '
 
     - |
-      curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-sync.sh << "EOF"
+      curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-repo-sync.sh << "EOF"
       #!/bin/bash
       set -euo pipefail
 
       source /etc/infraserver/bootstrap.env
 
-      LOG_FILE="/var/log/infraserver/ansible-sync.log"
+      LOG_FILE="/var/log/infraserver/repo-sync.log"
 
       exec >>"$LOG_FILE" 2>&1
 
-      echo "===== $(date) :: inicio ansible-sync ====="
+      echo "===== $(date) :: inicio repo-sync ====="
 
-      mkdir -p "$CFG_DIR"
-
-      echo "[1/4] Detectando MAC..."
-      MAC=$(ip link show | awk "/link\\/ether/ {print \$2; exit}" | tr ":" "-")
-      echo "MAC detectada: $MAC"
-
-      echo "[2/4] Descargando variables del host..."
-      curl -fsSL "${DS_URL}/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
-
-      echo "[3/4] Sincronizando repositorio..."
       if [ ! -d "$REPO_DIR/.git" ]; then
         git clone "$REPO_URL" "$REPO_DIR"
       else
         git -C "$REPO_DIR" pull --ff-only
       fi
 
-      echo "[4/4] Ejecutando playbook..."
+      echo "===== $(date) :: fin repo-sync ====="
+      EOF
+      chmod 755 /usr/local/sbin/ansible-repo-sync.sh'
+
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-apply.sh << "EOF"
+      #!/bin/bash
+      set -euo pipefail
+
+      source /etc/infraserver/bootstrap.env
+
+      LOG_FILE="/var/log/infraserver/apply.log"
+
+      exec >>"$LOG_FILE" 2>&1
+
+      echo "===== $(date) :: inicio apply ====="
+
+      mkdir -p "$CFG_DIR"
+
+      MAC=$(ip link show | awk "/link\\/ether/ {print \$2; exit}" | tr ":" "-")
+      curl -fsSL "${DS_URL}/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
+
       cd "$REPO_DIR/configs/ansible"
       ansible-playbook -i localhost, -c local playbooks/bootstrap.yaml -e @"$CFG_DIR/ansible.yml"
 
-      echo "===== $(date) :: fin ansible-sync ====="
+      echo "===== $(date) :: fin apply ====="
+      EOF
+      chmod 755 /usr/local/sbin/ansible-apply.sh'
+
+    - |
+      curtin in-target --target=/target -- bash -c 'cat > /usr/local/sbin/ansible-sync.sh << "EOF"
+      #!/bin/bash
+      set -euo pipefail
+
+      /usr/local/sbin/ansible-repo-sync.sh
+      /usr/local/sbin/ansible-apply.sh
       EOF
       chmod 755 /usr/local/sbin/ansible-sync.sh'
 

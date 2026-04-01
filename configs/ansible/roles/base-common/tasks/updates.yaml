@@ -45,7 +45,7 @@
   systemd:
     daemon_reload: true
 
-- name: Habilitar y arrancar timer
+- name: Habilitar y arrancar timer de actualización
   systemd:
     name: auto-update.timer
     enabled: true
