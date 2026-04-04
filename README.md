@@ -1,6 +1,6 @@
 # InfraServer — Bootstrap GitOps + Provisioning + Convergencia con Ansible
 
-InfraServer no es solo un clúster Kubernetes.
+InfraServer no es un clúster Kubernetes.
 
 Es un **sistema completo de despliegue de infraestructura** donde los nodos:
 
