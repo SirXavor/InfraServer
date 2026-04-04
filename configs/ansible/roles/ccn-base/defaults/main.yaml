@@ -1,3 +1,8 @@
+---
+# ----------------------------
+# PAM
+# ----------------------------
+
 pam_faillock_deny: 5
 pam_faillock_fail_interval: 900
 pam_faillock_unlock_time: 0
@@ -20,3 +25,19 @@ pam_pass_warn_age: 12
 pam_pass_user_max_days: 730
 
 pam_shell_timeout: 600
+
+# ----------------------------
+# SSH
+# ----------------------------
+
+ssh_port: 22
+ssh_allow_groups:
+  - sudo
+
+# ----------------------------
+# AUDITD
+# ----------------------------
+
+auditd_max_log_file: 50
+auditd_num_logs: 10
+auditd_space_left: 75

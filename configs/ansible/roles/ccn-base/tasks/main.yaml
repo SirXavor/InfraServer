@@ -1,1 +1,3 @@
 - import_tasks: pam.yaml
+- import_tasks: ssh.yaml
+- import_tasks: auditd.yaml

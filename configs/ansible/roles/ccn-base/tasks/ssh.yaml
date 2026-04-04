@@ -1,0 +1,76 @@
+---
+- name: Instalar servidor SSH
+  apt:
+    name: openssh-server
+    state: present
+    update_cache: true
+
+- name: Asegurar que el servicio SSH está habilitado y arrancado
+  systemd:
+    name: ssh
+    enabled: true
+    state: started
+
+- name: Configurar banner SSH
+  copy:
+    dest: /etc/issue.net
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      AVISO IMPORTANTE DE SEGURIDAD
+
+      Acceso restringido. Sistema monitorizado.
+      El uso no autorizado está prohibido y será registrado.
+      El acceso a este sistema implica la aceptación de las políticas de seguridad vigentes.
+
+- name: Configurar endurecimiento base de SSH
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - SSH HARDENING"
+    block: |
+      Port {{ ssh_port | default(22) }}
+      Protocol 2
+
+      PermitRootLogin no
+      PasswordAuthentication no
+      PermitEmptyPasswords no
+      KbdInteractiveAuthentication no
+      ChallengeResponseAuthentication no
+
+      PubkeyAuthentication yes
+      UsePAM yes
+
+      X11Forwarding no
+      AllowTcpForwarding no
+      AllowAgentForwarding no
+      PermitTunnel no
+
+      MaxAuthTries 3
+      LoginGraceTime 30
+      MaxSessions 2
+
+      ClientAliveInterval 300
+      ClientAliveCountMax 2
+
+      Banner /etc/issue.net
+
+      {% if ssh_allow_users is defined and ssh_allow_users | length > 0 %}
+      AllowUsers {{ ssh_allow_users | join(' ') }}
+      {% endif %}
+
+      {% if ssh_allow_groups is defined and ssh_allow_groups | length > 0 %}
+      AllowGroups {{ ssh_allow_groups | join(' ') }}
+      {% endif %}
+  backup: true
+
+- name: Validar configuración de SSH
+  command: sshd -t
+  register: sshd_validation
+  changed_when: false
+
+- name: Reiniciar SSH si la validación ha sido correcta
+  systemd:
+    name: ssh
+    state: restarted
+  when: sshd_validation.rc == 0
