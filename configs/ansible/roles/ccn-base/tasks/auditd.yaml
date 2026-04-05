@@ -105,6 +105,11 @@
 
 - name: Cargar reglas de auditoría
   command: augenrules --load
+  register: augenrules_result
+  changed_when: "'No change' not in augenrules_result.stdout"
+  failed_when: >
+    augenrules_result.rc != 0 and
+    'No change' not in augenrules_result.stdout
   notify: restart auditd
 
 # ----------------------------
