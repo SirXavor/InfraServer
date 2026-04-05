@@ -1,5 +1,5 @@
 ---
-# tasks/pam.yml
+# tasks/pam.yaml
 # Hardening PAM para Ubuntu
 # - Bloqueo por intentos fallidos (pam_faillock)
 # - Política de calidad de contraseña (pam_pwquality)
@@ -30,13 +30,13 @@
     owner: root
     group: root
     mode: "0644"
+    backup: true
     content: |
       # Managed by Ansible - CCN/PAM hardening
       deny = {{ pam_faillock_deny | default(5) }}
       fail_interval = {{ pam_faillock_fail_interval | default(900) }}
       unlock_time = {{ pam_faillock_unlock_time | default(0) }}
       admin_group = {{ pam_faillock_admin_group | default('sudo') }}
-  backup: true
 
 - name: Eliminar referencias antiguas a pam_faillock en common-auth
   lineinfile:
@@ -57,19 +57,19 @@
     path: /etc/pam.d/common-auth
     marker: "# {mark} ANSIBLE MANAGED BLOCK - PAM FAILLOCK"
     insertbefore: 'auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
+    backup: true
     block: |
       auth required pam_faillock.so preauth silent audit
       auth [default=die] pam_faillock.so authfail audit
-    backup: true
 
 - name: Insertar control de cuenta PAM faillock en common-account
   blockinfile:
     path: /etc/pam.d/common-account
     marker: "# {mark} ANSIBLE MANAGED BLOCK - PAM FAILLOCK ACCOUNT"
     insertafter: BOF
+    backup: true
     block: |
       account required pam_faillock.so
-    backup: true
 
 - name: Configurar calidad de contraseñas en /etc/security/pwquality.conf
   copy:
@@ -77,6 +77,7 @@
     owner: root
     group: root
     mode: "0644"
+    backup: true
     content: |
       # Managed by Ansible - CCN/PAM hardening
       minlen = {{ pam_pwquality_minlen | default(10) }}
@@ -88,14 +89,12 @@
       maxrepeat = {{ pam_pwquality_maxrepeat | default(3) }}
       gecoscheck = {{ pam_pwquality_gecoscheck | default(1) }}
       enforce_for_root
-  backup: true
 
 - name: Asegurar pam_pwquality en common-password
   lineinfile:
     path: /etc/pam.d/common-password
     regexp: '^password\s+requisite\s+pam_pwquality\.so'
-    line: >-
-      password requisite pam_pwquality.so retry=3
+    line: 'password requisite pam_pwquality.so retry=3'
     insertbefore: '^password\s+\[success=1 default=ignore\]\s+pam_unix\.so'
     backup: true
 
@@ -142,7 +141,7 @@
 - name: Bloquear cuenta root
   command: passwd -l root
   register: pam_root_lock
-  changed_when: "'password changed' in pam_root_lock.stdout | lower or 'password changed' in pam_root_lock.stderr | lower"
+  changed_when: "'password changed' in (pam_root_lock.stdout | lower) or 'password changed' in (pam_root_lock.stderr | lower)"
   failed_when: false
 
 - name: Crear timeout de shell por inactividad
@@ -151,11 +150,11 @@
     owner: root
     group: root
     mode: "0644"
+    backup: true
     content: |
       TMOUT={{ pam_shell_timeout | default(600) }}
       readonly TMOUT
       export TMOUT
-  backup: true
 
 - name: Resetear bloqueos faillock existentes
   command: faillock --reset
