@@ -1,0 +1,91 @@
+---
+- name: Proteger /etc/shadow
+  file:
+    path: /etc/shadow
+    owner: root
+    group: shadow
+    mode: "0640"
+  failed_when: false
+
+- name: Proteger /etc/gshadow
+  file:
+    path: /etc/gshadow
+    owner: root
+    group: shadow
+    mode: "0640"
+  failed_when: false
+
+- name: Asegurar permisos de /etc/passwd
+  file:
+    path: /etc/passwd
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Asegurar permisos de /etc/group
+  file:
+    path: /etc/group
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Asegurar permisos de /etc/sudoers
+  file:
+    path: /etc/sudoers
+    owner: root
+    group: root
+    mode: "0440"
+
+- name: Asegurar permisos de /etc/fstab
+  file:
+    path: /etc/fstab
+    owner: root
+    group: root
+    mode: "0644"
+
+- name: Proteger directorio /root
+  file:
+    path: /root
+    owner: root
+    group: root
+    mode: "0700"
+
+- name: Asegurar permisos en /etc/ssh/sshd_config
+  file:
+    path: /etc/ssh/sshd_config
+    owner: root
+    group: root
+    mode: "0600"
+  failed_when: false
+
+- name: Asegurar permisos en /etc/security/faillock.conf
+  file:
+    path: /etc/security/faillock.conf
+    owner: root
+    group: root
+    mode: "0644"
+  failed_when: false
+
+- name: Asegurar permisos en /etc/security/pwquality.conf
+  file:
+    path: /etc/security/pwquality.conf
+    owner: root
+    group: root
+    mode: "0644"
+  failed_when: false
+
+- name: Asegurar permisos en /etc/audit/auditd.conf
+  file:
+    path: /etc/audit/auditd.conf
+    owner: root
+    group: root
+    mode: "0640"
+  failed_when: false
+
+- name: Asegurar permisos en reglas de auditd
+  file:
+    path: /etc/audit/rules.d/ccn.rules
+    owner: root
+    group: root
+    mode: "0640"
+  failed_when: false

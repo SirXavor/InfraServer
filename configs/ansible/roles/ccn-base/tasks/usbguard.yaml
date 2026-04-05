@@ -1,0 +1,78 @@
+---
+- name: Instalar usbguard
+  apt:
+    name: usbguard
+    state: present
+    update_cache: true
+
+- name: Asegurar directorios de usbguard
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: root
+    group: root
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "/etc/usbguard", mode: "0755" }
+    - { path: "/etc/usbguard/IPCAccessControl.d", mode: "0755" }
+    - { path: "/var/log/usbguard", mode: "0755" }
+
+- name: Configurar usbguard-daemon.conf
+  copy:
+    dest: /etc/usbguard/usbguard-daemon.conf
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      # Managed by Ansible - CCN USBGuard hardening
+      RuleFile=/etc/usbguard/rules.conf
+      ImplicitPolicyTarget=block
+
+      PresentDevicePolicy=keep
+      PresentControllerPolicy=apply-policy
+      InsertedDevicePolicy=apply-policy
+
+      RestoreControllerDeviceState=false
+      DeviceManagerBackend=uevent
+
+      IPCAllowedUsers=root
+      IPCAllowedGroups={{ usbguard_allowed_groups | default('sudo') }}
+      IPCAccessControlFiles=/etc/usbguard/IPCAccessControl.d/
+
+      DeviceRulesWithPort=false
+
+      AuditBackend=FileAudit
+      AuditFilePath=/var/log/usbguard/usbguard-audit.log
+  backup: true
+
+- name: Comprobar si existe rules.conf
+  stat:
+    path: /etc/usbguard/rules.conf
+  register: usbguard_rules
+
+- name: Generar política inicial de usbguard si no existe
+  shell: usbguard generate-policy --insert-policy=allow > /etc/usbguard/rules.conf
+  args:
+    executable: /bin/bash
+  when: not usbguard_rules.stat.exists
+
+- name: Asegurar permisos de rules.conf
+  file:
+    path: /etc/usbguard/rules.conf
+    owner: root
+    group: root
+    mode: "0600"
+  when: usbguard_rules.stat.exists or true
+
+- name: Habilitar y arrancar usbguard
+  systemd:
+    name: usbguard
+    enabled: true
+    state: started
+  failed_when: false
+
+- name: Reiniciar usbguard para aplicar cambios
+  systemd:
+    name: usbguard
+    state: restarted
+  failed_when: false

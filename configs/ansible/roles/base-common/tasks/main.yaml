@@ -1,3 +1,4 @@
 - import_tasks: agent.yaml
 - import_tasks: users.yaml
 - import_tasks: updates.yaml
+- import_tasks: sysctl.yaml

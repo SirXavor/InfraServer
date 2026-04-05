@@ -1,0 +1,60 @@
+---
+- name: Comprobar si grub-mkpasswd-pbkdf2 está disponible
+  command: which grub-mkpasswd-pbkdf2
+  register: grub_pbkdf2_check
+  changed_when: false
+  failed_when: grub_pbkdf2_check.rc != 0
+
+- name: Asegurar existencia de /etc/grub.d/40_custom
+  file:
+    path: /etc/grub.d/40_custom
+    state: touch
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configurar usuario y contraseña PBKDF2 en GRUB
+  blockinfile:
+    path: /etc/grub.d/40_custom
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - CCN GRUB"
+    block: |
+      set superusers="{{ bootloader_grub_user }}"
+      password_pbkdf2 {{ bootloader_grub_user }} {{ bootloader_grub_password_pbkdf2 }}
+  backup: true
+
+- name: Eliminar posibles entradas rescue
+  shell: rm -f /boot/*rescue* 2>/dev/null || true
+  args:
+    executable: /bin/bash
+  changed_when: false
+
+- name: Regenerar configuración de GRUB
+  command: update-grub
+  register: grub_update
+  changed_when: "'Generating grub configuration file' in grub_update.stdout"
+
+- name: Detectar ruta de grub.cfg en BIOS
+  stat:
+    path: /boot/grub/grub.cfg
+  register: grub_cfg_bios
+
+- name: Detectar ruta de grub.cfg en UEFI Ubuntu
+  stat:
+    path: /boot/efi/EFI/ubuntu/grub.cfg
+  register: grub_cfg_uefi_ubuntu
+
+- name: Proteger grub.cfg en BIOS
+  file:
+    path: /boot/grub/grub.cfg
+    owner: root
+    group: root
+    mode: "0600"
+  when: grub_cfg_bios.stat.exists
+
+- name: Proteger grub.cfg en UEFI Ubuntu
+  file:
+    path: /boot/efi/EFI/ubuntu/grub.cfg
+    owner: root
+    group: root
+    mode: "0600"
+  when: grub_cfg_uefi_ubuntu.stat.exists

@@ -41,3 +41,64 @@ ssh_allow_groups:
 auditd_max_log_file: 50
 auditd_num_logs: 10
 auditd_space_left: 75
+
+# ----------------------------
+# SYSCTL
+# ip_forward debe estar a 1 en nodos k3s/k8s con Flannel
+# ----------------------------
+
+sysctl_ipv4_ip_forward: 1
+
+# ----------------------------
+# CRYPTO
+# De momento, SECLEVEL 2, verificar compatibilidad del nivel 3
+# ----------------------------
+
+crypto_profile: "default"
+
+crypto_openssl_min_protocol: "TLSv1.2"
+#crypto_openssl_min_protocol: "TLSv1.3"
+crypto_openssl_seclevel: 2
+#crypto_openssl_seclevel: 3
+
+
+crypto_gnutls_profile: "SECURE128:-VERS-SSL3.0:-VERS-TLS1.0:-VERS-TLS1.1"
+#crypto_gnutls_profile: "NORMAL:-VERS-ALL:+VERS-TLS1.3:+AEAD:+CHACHA20-POLY1305:+AES-256-GCM:+AES-128-GCM"
+
+crypto_ssh_kex_algorithms:
+  - curve25519-sha256
+  - curve25519-sha256@libssh.org
+
+crypto_ssh_ciphers:
+  - chacha20-poly1305@openssh.com
+  - aes256-gcm@openssh.com
+  - aes256-ctr
+
+crypto_ssh_macs:
+  - hmac-sha2-512-etm@openssh.com
+  - hmac-sha2-256-etm@openssh.com
+
+crypto_ssh_ca_signature_algorithms:
+  - rsa-sha2-512
+  - rsa-sha2-256
+
+# ----------------------------
+# BOOTLOADER / GRUB
+# ----------------------------
+
+bootloader_grub_user: "admin"
+bootloader_grub_password_pbkdf2: "grub.pbkdf2.sha512.10000.A84F4B1635204B4223B46BED5DA9F4F3B5E5ACA2BE22A83A8422023BBEEA40852DCCCF837592BD4C02CBEFABD0DBAAC1AD64717CB7566E92F4976779B5515573.55E29A1B220CB520F7EC377D78F30A8FF9453C141B44DED92E6600C4E6B69B4D28CDF6B55286A090FFEB6CA30D1E57ADC193EEFA3A94EC44E99CD20CD03B69A7"
+
+# ----------------------------
+# ANTIMALWARE
+# ----------------------------
+
+antimalware_enable_clamav: true
+antimalware_enable_apparmor: true
+antimalware_restrict_compilers: true
+
+# ----------------------------
+# USBGUARD
+# ----------------------------
+
+usbguard_allowed_groups: "sudo"

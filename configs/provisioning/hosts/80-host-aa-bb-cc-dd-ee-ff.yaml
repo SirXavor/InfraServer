@@ -16,13 +16,23 @@ automation:
 
   roles:
     - base-common
+    - ccn-base
+
 
   vars:
     test_message: "Prueba de Ansible desde InfraServer"
     users:
       - name: xavor
         password: "$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA."
-        groups: ["sudo"]
+        groups:
+          - sudo
+        shell: /bin/bash
         ssh_keys:
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMdSPnfzS2L6RdbZl9Tc/mdjMucVt03Z+JeY/Uhb5mV Casa
+
+      - name: admin.c3s
+        password: "$6$rPp1eCmX8PAkQz.9$BbbKexET59FkgsQDZMjUl46d4pu1mOp40fbpuiZETuRA.f6KVVYajxQCS6xPDRQAhJ7Bg/WXfihjmEyBOmRSw/"
+        groups:
+          - sudo
+        shell: /bin/bash

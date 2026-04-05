@@ -1,3 +1,10 @@
 - import_tasks: pam.yaml
 - import_tasks: ssh.yaml
 - import_tasks: auditd.yaml
+- import_tasks: sysctl.yaml
+- import_tasks: services.yaml
+- import_tasks: filesystem.yaml
+- import_tasks: crypto.yaml
+- import_tasks: bootloader.yaml
+- import_tasks: antimalware.yaml
+- import_tasks: usbguard.yaml

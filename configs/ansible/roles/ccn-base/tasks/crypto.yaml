@@ -1,0 +1,58 @@
+---
+- name: Asegurar directorio de configuración GnuTLS
+  file:
+    path: /etc/gnutls
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
+- name: Configurar política OpenSSL
+  blockinfile:
+    path: /etc/ssl/openssl.cnf
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - CCN OPENSSL"
+    block: |
+      openssl_conf = default_conf
+
+      [ default_conf ]
+      ssl_conf = ssl_sect
+
+      [ ssl_sect ]
+      system_default = system_default_sect
+
+      [ system_default_sect ]
+      MinProtocol = {{ crypto_openssl_min_protocol }}
+      CipherString = DEFAULT@SECLEVEL={{ crypto_openssl_seclevel }}
+  backup: true
+
+- name: Configurar prioridades GnuTLS
+  copy:
+    dest: /etc/gnutls/default-priorities
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      {{ crypto_gnutls_profile }}
+  backup: true
+
+- name: Configurar endurecimiento criptográfico de SSH
+  blockinfile:
+    path: /etc/ssh/sshd_config
+    marker: "# {mark} ANSIBLE MANAGED BLOCK - CCN SSH CRYPTO"
+    block: |
+      KexAlgorithms {{ crypto_ssh_kex_algorithms | join(',') }}
+      Ciphers {{ crypto_ssh_ciphers | join(',') }}
+      MACs {{ crypto_ssh_macs | join(',') }}
+      CASignatureAlgorithms {{ crypto_ssh_ca_signature_algorithms | join(',') }}
+  backup: true
+
+- name: Validar configuración SSH tras cambios criptográficos
+  command: sshd -t
+  register: crypto_sshd_validation
+  changed_when: false
+
+- name: Reiniciar SSH si la validación ha sido correcta
+  systemd:
+    name: ssh
+    state: restarted
+  when: crypto_sshd_validation.rc == 0

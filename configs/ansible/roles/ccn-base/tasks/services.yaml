@@ -1,0 +1,77 @@
+---
+- name: Definir servicios que deben estar habilitados
+  set_fact:
+    ccn_services_enabled:
+      - ssh
+      - auditd
+      - systemd-timesyncd
+    ccn_services_disabled:
+      - cups
+      - avahi-daemon
+      - geoclue
+      - bluetooth
+      - ModemManager
+      - speech-dispatcher
+      - rsync
+      - rpcbind
+      - postfix
+    ccn_services_masked:
+      - cups
+      - avahi-daemon
+      - geoclue
+      - bluetooth
+      - ModemManager
+  when: ansible_os_family == "Debian"
+
+- name: Obtener lista de servicios instalados
+  command: systemctl list-unit-files --type=service --no-legend --no-pager
+  register: ccn_systemd_units
+  changed_when: false
+
+- name: Extraer nombres de servicios instalados
+  set_fact:
+    ccn_installed_services: >-
+      {{
+        ccn_systemd_units.stdout_lines
+        | map('regex_replace', '\.service\s+.*$', '')
+        | list
+      }}
+
+# ----------------------------
+# HABILITAR SERVICIOS NECESARIOS
+# ----------------------------
+
+- name: Habilitar servicios requeridos
+  systemd:
+    name: "{{ item }}"
+    enabled: true
+    state: started
+  loop: "{{ ccn_services_enabled }}"
+  when: item in ccn_installed_services
+  failed_when: false
+
+# ----------------------------
+# DESHABILITAR SERVICIOS INNECESARIOS
+# ----------------------------
+
+- name: Deshabilitar servicios no necesarios
+  systemd:
+    name: "{{ item }}"
+    enabled: false
+    state: stopped
+  loop: "{{ ccn_services_disabled }}"
+  when: item in ccn_installed_services
+  failed_when: false
+
+# ----------------------------
+# ENMASCARAR SERVICIOS NO AUTORIZADOS
+# ----------------------------
+
+- name: Enmascarar servicios no autorizados
+  systemd:
+    name: "{{ item }}"
+    masked: true
+    state: stopped
+  loop: "{{ ccn_services_masked }}"
+  when: item in ccn_installed_services
+  failed_when: false
