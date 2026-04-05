@@ -22,7 +22,7 @@
     dest: /etc/usbguard/usbguard-daemon.conf
     owner: root
     group: root
-    mode: "0644"
+    mode: "0600"
     content: |
       # Managed by Ansible - CCN USBGuard hardening
       RuleFile=/etc/usbguard/rules.conf
