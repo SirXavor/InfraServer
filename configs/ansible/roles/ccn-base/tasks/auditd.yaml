@@ -40,7 +40,7 @@
       disk_error_action = SUSPEND
 
       name_format = hostname
-  backup: true
+    backup: true
 
 # ----------------------------
 # REGLAS DE AUDITORÍA
@@ -97,7 +97,7 @@
 
       ## FIN
       -e 2
-  backup: true
+    backup: true
 
 # ----------------------------
 # CARGA DE REGLAS

@@ -44,7 +44,7 @@
       kernel.dmesg_restrict = 1
       kernel.randomize_va_space = 2
       kernel.kptr_restrict = 2
-  backup: true
+    backup: true
 
 - name: Aplicar configuración sysctl
   command: sysctl --system

@@ -43,7 +43,7 @@
 
       AuditBackend=FileAudit
       AuditFilePath=/var/log/usbguard/usbguard-audit.log
-  backup: true
+    backup: true
 
 - name: Comprobar si existe rules.conf
   stat:

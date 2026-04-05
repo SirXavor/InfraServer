@@ -28,6 +28,7 @@
   blockinfile:
     path: /etc/ssh/sshd_config
     marker: "# {mark} ANSIBLE MANAGED BLOCK - SSH HARDENING"
+    backup: true
     block: |
       Port {{ ssh_port | default(22) }}
       Protocol 2
@@ -62,7 +63,6 @@
       {% if ssh_allow_groups is defined and ssh_allow_groups | length > 0 %}
       AllowGroups {{ ssh_allow_groups | join(' ') }}
       {% endif %}
-  backup: true
 
 - name: Validar configuración de SSH
   command: sshd -t

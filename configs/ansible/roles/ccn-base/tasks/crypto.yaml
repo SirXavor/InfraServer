@@ -23,7 +23,7 @@
       [ system_default_sect ]
       MinProtocol = {{ crypto_openssl_min_protocol }}
       CipherString = DEFAULT@SECLEVEL={{ crypto_openssl_seclevel }}
-  backup: true
+    backup: true
 
 - name: Configurar prioridades GnuTLS
   copy:
@@ -33,7 +33,7 @@
     mode: "0644"
     content: |
       {{ crypto_gnutls_profile }}
-  backup: true
+    backup: true
 
 - name: Configurar endurecimiento criptográfico de SSH
   blockinfile:
@@ -44,7 +44,7 @@
       Ciphers {{ crypto_ssh_ciphers | join(',') }}
       MACs {{ crypto_ssh_macs | join(',') }}
       CASignatureAlgorithms {{ crypto_ssh_ca_signature_algorithms | join(',') }}
-  backup: true
+    backup: true
 
 - name: Validar configuración SSH tras cambios criptográficos
   command: sshd -t
