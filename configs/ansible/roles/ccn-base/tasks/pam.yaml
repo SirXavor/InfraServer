@@ -1,5 +1,4 @@
 ---
-# tasks/pam.yaml
 # Hardening PAM para Ubuntu
 # - Bloqueo por intentos fallidos (pam_faillock)
 # - Política de calidad de contraseña (pam_pwquality)
@@ -35,8 +34,12 @@
       # Managed by Ansible - CCN/PAM hardening
       deny = {{ pam_faillock_deny | default(5) }}
       fail_interval = {{ pam_faillock_fail_interval | default(900) }}
-      unlock_time = {{ pam_faillock_unlock_time | default(0) }}
+      unlock_time = {{ pam_faillock_unlock_time | default(600) }}
       admin_group = {{ pam_faillock_admin_group | default('sudo') }}
+
+# -------------------------------------------------
+# PAM FAILLOCK - common-auth
+# -------------------------------------------------
 
 - name: Eliminar referencias antiguas a pam_faillock en common-auth
   lineinfile:
@@ -45,6 +48,38 @@
     state: absent
     backup: true
 
+- name: Asegurar línea pam_unix base en common-auth
+  lineinfile:
+    path: /etc/pam.d/common-auth
+    regexp: '^auth\s+\[success=1 default=ignore\]\s+pam_unix\.so.*'
+    line: 'auth    [success=1 default=ignore]      pam_unix.so nullok'
+    backup: true
+
+- name: Añadir pam_faillock preauth antes de pam_unix
+  lineinfile:
+    path: /etc/pam.d/common-auth
+    insertbefore: '^auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
+    line: 'auth    required                        pam_faillock.so preauth silent audit'
+    backup: true
+
+- name: Añadir pam_faillock authfail después de pam_unix
+  lineinfile:
+    path: /etc/pam.d/common-auth
+    insertafter: '^auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
+    line: 'auth    [default=die]                   pam_faillock.so authfail audit'
+    backup: true
+
+- name: Añadir pam_faillock authsucc después de authfail
+  lineinfile:
+    path: /etc/pam.d/common-auth
+    insertafter: '^auth\s+\[default=die\]\s+pam_faillock\.so authfail audit'
+    line: 'auth    sufficient                      pam_faillock.so authsucc audit'
+    backup: true
+
+# -------------------------------------------------
+# PAM FAILLOCK - common-account
+# -------------------------------------------------
+
 - name: Eliminar referencias antiguas a pam_faillock en common-account
   lineinfile:
     path: /etc/pam.d/common-account
@@ -52,26 +87,16 @@
     state: absent
     backup: true
 
-- name: Insertar bloque PAM faillock en common-auth
-  blockinfile:
-    path: /etc/pam.d/common-auth
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - PAM FAILLOCK"
-    insertbefore: '^auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
-    backup: true
-    block: |
-      auth required pam_faillock.so preauth silent audit
-
-      auth [default=die] pam_faillock.so authfail audit
-      auth sufficient pam_faillock.so authsucc audit
-
-- name: Insertar control de cuenta PAM faillock en common-account
-  blockinfile:
+- name: Añadir pam_faillock en common-account antes de pam_unix
+  lineinfile:
     path: /etc/pam.d/common-account
-    marker: "# {mark} ANSIBLE MANAGED BLOCK - PAM FAILLOCK ACCOUNT"
-    insertafter: BOF
+    insertbefore: '^account\s+\[success=1 new_authtok_reqd=done default=ignore\]\s+pam_unix\.so'
+    line: 'account required                        pam_faillock.so'
     backup: true
-    block: |
-      account required pam_faillock.so
+
+# -------------------------------------------------
+# PWQUALITY
+# -------------------------------------------------
 
 - name: Configurar calidad de contraseñas en /etc/security/pwquality.conf
   copy:
@@ -107,6 +132,10 @@
     replace: '\1obscure use_authtok try_first_pass yescrypt remember={{ pam_password_remember | default(5) }}'
     backup: true
 
+# -------------------------------------------------
+# LOGIN.DEFS
+# -------------------------------------------------
+
 - name: Configurar PASS_MAX_DAYS en /etc/login.defs
   lineinfile:
     path: /etc/login.defs
@@ -140,6 +169,10 @@
     executable: /bin/bash
   changed_when: false
 
+# -------------------------------------------------
+# ROOT / TIMEOUT
+# -------------------------------------------------
+
 - name: Bloquear cuenta root
   command: passwd -l root
   register: pam_root_lock
@@ -157,6 +190,10 @@
       TMOUT={{ pam_shell_timeout | default(600) }}
       readonly TMOUT
       export TMOUT
+
+# -------------------------------------------------
+# RESET FAILLOCK
+# -------------------------------------------------
 
 - name: Resetear bloqueos faillock existentes
   command: faillock --reset
