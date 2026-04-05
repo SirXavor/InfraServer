@@ -56,11 +56,13 @@
   blockinfile:
     path: /etc/pam.d/common-auth
     marker: "# {mark} ANSIBLE MANAGED BLOCK - PAM FAILLOCK"
-    insertbefore: 'auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
+    insertbefore: '^auth\s+\[success=1 default=ignore\]\s+pam_unix\.so'
     backup: true
     block: |
       auth required pam_faillock.so preauth silent audit
+
       auth [default=die] pam_faillock.so authfail audit
+      auth sufficient pam_faillock.so authsucc audit
 
 - name: Insertar control de cuenta PAM faillock en common-account
   blockinfile:
