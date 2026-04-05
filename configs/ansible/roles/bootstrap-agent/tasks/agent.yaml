@@ -1,3 +1,4 @@
+---
 - name: Crear directorio de logs de InfraServer
   file:
     path: /var/log/infraserver

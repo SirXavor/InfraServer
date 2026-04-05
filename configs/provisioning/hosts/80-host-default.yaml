@@ -13,3 +13,6 @@ automation:
   apply:
     playbook: "playbooks/bootstrap.yaml"
     interval: "1h"
+
+  roles:
+    - bootstrap-agent

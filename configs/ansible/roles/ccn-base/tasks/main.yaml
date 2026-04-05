@@ -8,3 +8,4 @@
 - import_tasks: bootloader.yaml
 - import_tasks: antimalware.yaml
 - import_tasks: usbguard.yaml
+- import_tasks: updates.yaml

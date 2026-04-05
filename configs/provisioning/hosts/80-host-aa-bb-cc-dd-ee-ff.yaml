@@ -15,10 +15,9 @@ automation:
     interval: "1h"
 
   roles:
-    - base-common
+    - bootstrap-agent
     - ccn-base
-
-
+    
   vars:
     test_message: "Prueba de Ansible desde InfraServer"
     users:

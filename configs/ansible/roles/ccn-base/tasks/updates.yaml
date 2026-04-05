@@ -1,21 +1,36 @@
+---
+- name: Asegurar directorio de logs
+  file:
+    path: /var/log/infraserver
+    state: directory
+    owner: root
+    group: root
+    mode: "0755"
+
 - name: Instalar script de actualización
   copy:
     dest: /usr/local/sbin/auto-update.sh
     owner: root
     group: root
-    mode: '0755'
+    mode: "0755"
     content: |
       #!/bin/bash
       set -euo pipefail
+
+      LOG_FILE="/var/log/infraserver/auto-update.log"
+      exec >>"$LOG_FILE" 2>&1
+
+      echo "===== $(date) :: inicio auto-update ====="
       apt-get update
       apt-get upgrade -y
+      echo "===== $(date) :: fin auto-update ====="
 
 - name: Instalar servicio systemd de actualización
   copy:
     dest: /etc/systemd/system/auto-update.service
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
     content: |
       [Unit]
       Description=Actualización automática del sistema
@@ -29,7 +44,7 @@
     dest: /etc/systemd/system/auto-update.timer
     owner: root
     group: root
-    mode: '0644'
+    mode: "0644"
     content: |
       [Unit]
       Description=Timer diario de actualización
