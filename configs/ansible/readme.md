@@ -1,8 +1,8 @@
 # Configuración continua con Ansible (InfraServer)
 
-Este módulo define cómo los nodos pasan de un sistema recién instalado a un sistema **totalmente configurado, mantenido y convergente en el tiempo**.
+Este módulo define cómo los nodos pasan de un sistema recién instalado a un sistema **totalmente configurado, seguro y convergente en el tiempo**.
 
-No es un "script de instalación".
+No es un script de instalación.
 Es un **sistema de convergencia continua**.
 
 ---
@@ -11,13 +11,13 @@ Es un **sistema de convergencia continua**.
 
 Provisioning instala lo mínimo imprescindible.
 
-Ansible construye el sistema real.
+Ansible construye el sistema real y lo mantiene.
 
 ---
 
 # 🧭 Filosofía
 
-Este diseño sigue un principio simple:
+Principio fundamental:
 
 > El sistema no se configura una vez.
 > Se corrige continuamente hasta alcanzar (y mantener) el estado deseado.
@@ -27,31 +27,32 @@ Esto permite:
 * Reproducibilidad
 * Corrección automática de drift
 * Evolución sin reinstalar
+* Operación continua en entornos edge
 
 ---
 
 # 🔄 Flujo completo
 
-1. Provisioning (cloud-init)
+1. **Provisioning (cloud-init)**
 
-   * Instala sistema base
-   * Configura red mínima
-   * Aplica cifrado / requisitos CCN
-   * Instala agente básico
+   * Instalación del sistema
+   * Red mínima
+   * Cifrado y requisitos CCN/STIC
+   * Instalación del agente de bootstrap
 
-2. Arranque del sistema
+2. **Primer arranque**
 
-3. Se activa `ansible-sync`
+3. **Activación de `ansible-sync`**
 
 4. El nodo:
 
-   * Descarga configuración desde el servidor
+   * Descarga configuración dinámica
    * Sincroniza el repositorio
    * Ejecuta Ansible
 
 5. Se aplican roles
 
-6. Se repite periódicamente
+6. El proceso se repite periódicamente
 
 👉 Resultado: sistema **autocorregido continuamente**
 
@@ -70,7 +71,7 @@ Ansible:
 
 ---
 
-# 📁 Estructura real del módulo
+# 📁 Estructura del módulo
 
 ```
 configs/ansible/
@@ -88,16 +89,16 @@ configs/ansible/
 
 `playbooks/bootstrap.yaml`
 
-Este playbook es intencionadamente simple:
+Diseñado como dispatcher:
 
-* No contiene lógica
-* No contiene decisiones
+* Sin lógica
+* Sin decisiones
 * Solo ejecuta roles
 
-Funciona como un "dispatcher":
+Fuente de verdad:
 
 ```
-automation.roles → lista de roles a ejecutar
+automation.roles
 ```
 
 ---
@@ -112,44 +113,42 @@ Cada rol:
 * Es reutilizable
 * Es independiente
 
-Ejemplos reales:
+---
 
-## bootstrap-agent
+## 🔹 bootstrap-agent
 
 Responsable de:
 
-* Sincronizar repositorio
+* Sincronizar el repositorio
 * Ejecutar Ansible periódicamente
-* Instalar servicios systemd
+* Instalar servicios systemd (`ansible-sync`)
 
-👉 Es el "motor de convergencia"
+👉 Es el **motor de convergencia**
 
 ---
 
-## ccn-base
+## 🔹 ccn-base
 
-Responsable de hardening del sistema:
+Responsable de la línea base de seguridad alineada con CCN/STIC:
 
-* PAM
-* SSH
-* auditd
-* sysctl
-* servicios
-* crypto
-* bootloader
-* antimalware
-* usbguard
-* updates
+* PAM (políticas de autenticación)
+* SSH (endurecimiento y control de acceso)
+* auditd (auditoría)
+* sysctl (hardening kernel/red)
+* servicios (reducción de superficie de ataque)
+* crypto (políticas criptográficas)
+* bootloader (protección GRUB)
+* antimalware (ClamAV, AppArmor)
+* usbguard (control de dispositivos)
+* updates (actualización automática)
 
-👉 Es la "línea base de seguridad"
+👉 Es la **baseline de seguridad del sistema**
 
 ---
 
 # 🔁 Orquestación interna
 
-Cada rol tiene un `main.yaml` que define el orden de ejecución.
-
-Ejemplo típico:
+Cada rol define su orden mediante `main.yaml`:
 
 ```yaml
 - import_tasks: pam.yaml
@@ -157,7 +156,7 @@ Ejemplo típico:
 - import_tasks: auditd.yaml
 ```
 
-👉 Esto permite:
+👉 Permite:
 
 * Modularidad
 * Orden controlado
@@ -165,22 +164,20 @@ Ejemplo típico:
 
 ---
 
-# ⚙️ Servicios que crea el sistema
-
-El sistema instala y mantiene:
+# ⚙️ Servicios del sistema
 
 ## ansible-sync
 
-Wrapper que ejecuta:
+Wrapper principal:
 
-1. Sincronización del repositorio
-2. Ejecución de Ansible
+1. Sincroniza repositorio
+2. Ejecuta Ansible
 
 ---
 
 ## ansible-repo-sync
 
-* Hace clone/pull del repositorio
+* Clone / pull del repositorio
 * Garantiza código actualizado
 
 ---
@@ -188,18 +185,18 @@ Wrapper que ejecuta:
 ## ansible-apply
 
 * Descarga configuración del host
-* Ejecuta playbook
+* Ejecuta el playbook
 
 ---
 
-## Timer
+## Timer systemd
 
 * Ejecuta el ciclo periódicamente
-* Mantiene la convergencia
+* Mantiene convergencia continua
 
 ---
 
-# 🔐 Variables (configuración dinámica)
+# 🔐 Configuración dinámica
 
 Cada nodo obtiene su configuración desde:
 
@@ -225,10 +222,31 @@ users:
   - name: xavor
 ```
 
-👉 Importante:
+👉 Principio clave:
 
-* La lógica está en el repo
-* La configuración está fuera
+* Código → en Git
+* Configuración → externa y dinámica
+
+---
+
+# 🛡️ Estado de implementación de seguridad
+
+| Componente   | Implementado | Validado | Notas                    |
+| ------------ | ------------ | -------- | ------------------------ |
+| PAM          | ✔            | ✔        | Políticas completas      |
+| SSH          | ✔            | ✔        | Sin password login       |
+| auditd       | ✔            | ✔        | Reglas CCN               |
+| sysctl       | ✔            | ✔        | Hardening kernel         |
+| servicios    | ✔            | ✔        | Reducción superficie     |
+| crypto       | ✔            | ⚠        | Nivel 2 validado         |
+| bootloader   | ✔            | ✔        | Protección GRUB          |
+| antimalware  | ✔            | ⚠        | Pendiente tuning         |
+| usbguard     | ✔            | ⚠        | Reglas iniciales         |
+| updates      | ✔            | ✔        | Automático               |
+| firewall     | ❌            | ❌        | Pendiente implementación |
+| red avanzada | ❌            | ❌        | Pendiente diseño final   |
+
+👉 Este bloque crecerá conforme evolucione el sistema.
 
 ---
 
@@ -277,23 +295,23 @@ systemctl status ansible-sync.service
 
 ---
 
-# 🎯 Qué consigues con este modelo
+# 🎯 Qué aporta este modelo
 
 * Sistemas reproducibles
 * Infraestructura declarativa
-* Cambios controlados desde Git
+* Corrección automática de desviaciones
 * Sin necesidad de reinstalar
 
 ---
 
-# 🚀 Hacia dónde evoluciona
+# 🚀 Evolución prevista
 
-Este modelo permite escalar a:
+Este módulo está diseñado para crecer hacia:
 
-* GitOps completo
-* Edge computing autónomo
-* Despliegues masivos
-* Integración con Kubernetes
+* Nuevos roles (firewall, networking, observabilidad)
+* Endurecimiento adicional CCN/STIC
+* Integración completa con Kubernetes
+* Edge autónomo a gran escala
 
 ---
 

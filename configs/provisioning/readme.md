@@ -2,14 +2,15 @@
 
 Este módulo define cómo se genera la configuración inicial de cada nodo durante el arranque automático.
 
-Su función NO es configurar completamente el sistema.
+Su objetivo es dejar el sistema:
 
-Su función es:
+* Instalado
+* Cifrado
+* Identificado
+* Conectado
+* Preparado para converger con Ansible
 
-* Generar configuraciones dinámicas de instalación (cloud-init)
-* Identificar cada nodo
-* Aplicar una base común segura
-* Permitir personalización por perfil y host
+👉 No realiza configuración completa del sistema ni instala servicios complejos.
 
 ---
 
@@ -17,46 +18,60 @@ Su función es:
 
 El provisioning no describe máquinas.
 
-Describe cómo construir su configuración a partir de capas.
+Describe cómo construir su configuración a partir de capas:
 
 ```
 BASE → PROFILE(s) → HOST
 ```
 
+👉 El resultado es un **cloud-init generado dinámicamente** para cada nodo.
+
 ---
 
-# 🧱 Capas de configuración
+# 🧱 Modelo de capas
+
+Cada capa aporta información distinta y tiene una prioridad definida.
 
 ## 1. Base
 
-Configuración común a todos los nodos.
+Configuración mínima común a todos los nodos.
 
-Incluye:
-
-* Instalación del sistema
-* Red mínima
-* Hardening inicial
-* Automatización básica
-
-Ejemplo:
+Ubicación:
 
 ```
 configs/provisioning/base/
 ```
 
-👉 Es el "mínimo obligatorio"
+Incluye:
+
+### 🔹 Instalación del sistema (`00-installer.yaml`)
+
+* Parámetros de autoinstall
+* Usuario inicial
+* Paquetes mínimos
+* Configuración del datasource NoCloud
+* Preparación para Ansible
+
+### 🔹 Red mínima (`10-network.yaml`)
+
+* Interfaz principal
+* DHCP
+* Conectividad necesaria para contactar con el servidor
+
+### 🔹 Automatización básica (`20-automation.yaml`)
+
+* Instalación del agente de bootstrap
+* Scripts de sincronización
+* Timer systemd para convergencia
+* Preparación de `/etc/infraserver`
+
+👉 La base es el **mínimo obligatorio** para que cualquier nodo pueda arrancar.
 
 ---
 
 ## 2. Profiles
 
-Definen la intención del nodo.
-
-Ejemplos:
-
-* `default`
-* `noswap`
-* `storage`
+Definen la intención del nodo, principalmente a nivel de almacenamiento y cifrado.
 
 Ubicación:
 
@@ -64,8 +79,46 @@ Ubicación:
 configs/provisioning/profiles/
 ```
 
-👉 Son combinables
-👉 No identifican nodos concretos
+* Son combinables
+* No identifican nodos concretos
+
+### 🔹 Perfiles disponibles
+
+#### `default-storage`
+
+* Particionado estándar
+* LVM
+* Cifrado LUKS
+* Swap incluida
+* Desbloqueo mediante TPM2 o Tang (SSS)
+
+👉 Uso general
+
+---
+
+#### `noswap-storage`
+
+Igual que el anterior, pero:
+
+* Sin swap
+
+👉 Pensado para Kubernetes
+
+---
+
+#### `edge-tang-storage`
+
+Perfil orientado a entornos edge con seguridad estricta:
+
+* Particionado estándar
+* LVM
+* Cifrado LUKS
+* Sin TPM2
+* Desbloqueo exclusivamente mediante Tang
+* Requiere red en initramfs
+
+👉 El nodo solo arranca si puede contactar con Tang
+👉 Evita arranque fuera del perímetro
 
 ---
 
@@ -79,208 +132,196 @@ Ubicación:
 configs/provisioning/hosts/
 ```
 
-Se identifican por:
+### 🔹 Identificación
 
-* MAC (principal)
-* fallback: default
+* Una o varias MAC
+* Fallback a `default`
 
-Ejemplo:
+---
 
-```
-90-host-aa-bb-cc-dd-ee-ff.yaml
+### 🔹 Ejemplo
+
+```yaml
+kind: host
+name: edge-node-17
+
+identity:
+  mac:
+    - aa-bb-cc-dd-ee-ff
+    - 11-22-33-44-55-66
+
+profile: edge-tang-storage
+hostname: k3s-master
+
+automation:
+  repo:
+    url: "https://github.com/SirXavor/InfraServer.git"
+    local_path: "/opt/InfraServer"
+    branch: "main"
+
+  apply:
+    playbook: "playbooks/bootstrap.yaml"
+    interval: "1h"
+
+  roles:
+    - bootstrap-agent
+    - ccn-base
+
+  vars:
+    users:
+      - name: xavor
+        groups: [sudo]
 ```
 
 ---
 
-# 🔄 Cómo se construye la configuración
+### 🔹 Qué define un host
+
+* `identity` → MACs del nodo
+* `profile` → almacenamiento/cifrado
+* `hostname` → nombre del sistema
+* `automation` → configuración de Ansible
+* `vars` → variables específicas
+
+👉 Es la única parte específica por nodo
+
+---
+
+# 🔄 Construcción de la configuración
 
 Cuando un nodo arranca:
 
-1. Se identifica por su MAC
-2. El servidor devuelve su configuración
-3. Se construye dinámicamente:
-
-```
-BASE
-+ PROFILE(s)
-+ HOST
-```
-
-👉 Resultado: un único cloud-init final
-
----
-
-# 🧬 Merge de configuración
-
-El sistema realiza un merge recursivo:
-
-* dict + dict → merge
-* list + list → concatenación
-* valores simples → sobrescritura
-
-👉 Orden de prioridad:
-
-```
-HOST > PROFILE > BASE
-```
-
----
-
-# 📁 Estructura típica
-
-```
-configs/provisioning/
-├── base/
-│   ├── 00-installer.yaml
-│   ├── 10-network.yaml
-│   └── 20-automation.yaml
-│
-├── profiles/
-│   ├── default/
-│   └── noswap/
-│
-├── hosts/
-│   ├── default.yaml
-│   └── aa-bb-cc-dd-ee-ff.yaml
-│
-└── kustomization.yaml
-```
-
----
-
-# 🧾 Archivos de host (lo importante)
-
-Los archivos de host son la pieza clave.
-
-Definen:
-
-* hostname
-* perfiles aplicados
-* overrides específicos
-
-Ejemplo:
-
-```yaml
-hostname: k3s-master
-profiles:
-  - default
-  - k3s
-```
-
----
-
-## 🔹 Qué debe contener un host
-
-Mínimo:
-
-* hostname
-* perfiles
-
-Opcional:
-
-* configuración específica
-* variables personalizadas
-
----
-
-## 🔹 default.yaml
-
-Se usa cuando no hay match por MAC.
-
-👉 Permite comportamiento por defecto
-
----
-
-# ⚙️ Generación de cloud-init
-
-El provisioning genera dinámicamente:
-
-* `user-data`
-* `meta-data`
-
-A partir del merge de capas.
-
-👉 No hay archivos finales estáticos
-👉 Todo se construye en tiempo de petición
-
----
-
-# 🔌 Integración con el arranque
-
-El provisioning se expone vía HTTP:
+1. iPXE carga kernel e initrd
+2. cloud-init consulta:
 
 ```
 http://boot.local/ds/<mac>/user-data
 ```
 
-Flujo:
+3. El servidor:
 
-1. Nodo arranca por red
-2. iPXE carga cloud-init
-3. cloud-init consulta endpoint
-4. recibe configuración generada
+* Identifica el host
+* Selecciona perfiles
+* Aplica base
+* Realiza el merge
+
+👉 Resultado: un único cloud-init generado en tiempo real
+
+---
+
+# 🧬 Merge de configuración
+
+Merge recursivo:
+
+* `dict + dict` → merge
+* `list + list` → concatenación
+* valores simples → sobrescritura
+
+Prioridad:
+
+```
+HOST > PROFILE > BASE
+```
+
+👉 Permite reutilización + overrides limpios
 
 ---
 
-# ⚠️ Principios importantes
+# ⚙️ Endpoints generados
 
-## No lógica en el instalador
+El provisioning expone:
 
-El instalador no decide.
+```
+/ds/<mac>/user-data
+/ds/<mac>/meta-data
+/ds/<mac>/ansible
+```
 
-👉 Solo consume configuración
+### 🔹 Contenido
+
+* `user-data` → cloud-init
+* `meta-data` → identidad
+* `ansible` → configuración de convergencia
 
 ---
+
+# 🔌 Integración con el arranque
+
+Flujo completo:
+
+```
+PXE → iPXE → kernel/initrd → cloud-init → instalación → primer arranque
+```
+
+👉 El provisioning no ejecuta lógica compleja
+👉 Solo entrega configuración declarativa
+
+---
+
+# ⚠️ Principios clave
 
 ## Declarativo
 
-Se define el estado deseado del nodo.
+Se define el estado deseado.
+
+---
+
+## Sin lógica en el instalador
+
+El instalador no decide.
 
 ---
 
 ## Reutilizable
 
-* base común
-* perfiles combinables
-* hosts mínimos
+* Base común
+* Perfiles combinables
+* Hosts mínimos
 
 ---
 
 ## Escalable
 
-Permite:
-
-* cientos de nodos
-* configuraciones distintas
-* mantenimiento sencillo
+* Diseñado para muchos nodos
+* Diferencias gestionadas por YAML
 
 ---
 
 # 🧪 Debug
 
-Para probar un host:
+Ver configuración final:
 
 ```bash
 curl http://boot.local/ds/aa-bb-cc-dd-ee-ff/user-data
 ```
 
-👉 Permite ver el resultado final del merge
+Ver hosts cargados:
+
+```bash
+curl http://boot.local/debug/hosts
+```
 
 ---
 
-# 🎯 Objetivo
+# 🎯 Objetivo del módulo
 
 * Provisioning mínimo
-* Configuración flexible
-* Separación total de responsabilidades
+* Seguridad desde el arranque
+* Configuración declarativa
+* Perfiles reutilizables
+* Identidad determinista
 * Base para convergencia con Ansible
 
 ---
 
 # 🧠 Resumen final
 
-Provisioning no configura máquinas.
+El provisioning no configura el sistema final.
 
-Construye configuraciones.
+Construye su configuración inicial combinando:
 
-Y las entrega dinámicamente a cada nodo.
+```
+BASE + PROFILE(s) + HOST
+```
+
+Y la entrega dinámicamente durante el arranque.
