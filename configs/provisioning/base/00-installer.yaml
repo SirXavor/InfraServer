@@ -18,6 +18,8 @@ autoinstall:
     authorized-keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMdSPnfzS2L6RdbZl9Tc/mdjMucVt03Z+JeY/Uhb5mV Casa
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG  Portatil-Aux
+
     allow-pw: false
 
   packages:
