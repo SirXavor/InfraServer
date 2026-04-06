@@ -50,7 +50,7 @@ Solo deja el nodo en un estado:
 # 🔄 Flujo completo
 
 ```
-DHCP → PXE → iPXE → HTTP → cloud-init → sistema mínimo → Ansible → Kubernetes → ArgoCD
+DHCP → PXE → iPXE → HTTP → cloud-init → sistema mínimo → Ansible → Kubernetes → Servicios
 ```
 
 1. Arranque por red
