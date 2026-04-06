@@ -1,40 +1,76 @@
-# Configuración continua con Ansible
+# Configuración continua con Ansible (InfraServer)
 
-Este módulo se encarga de la **convergencia del sistema (Día 1+)**.
+Este módulo define cómo los nodos pasan de un sistema recién instalado a un sistema **totalmente configurado, mantenido y convergente en el tiempo**.
 
-Su función es:
-
-* Aplicar configuración declarativa
-* Mantener el estado deseado del sistema
-* Ejecutar cambios de forma idempotente
-* Permitir evolución continua de la infraestructura
+No es un "script de instalación".
+Es un **sistema de convergencia continua**.
 
 ---
 
-# 🧠 Concepto clave
+# 🧠 Idea clave
 
-Provisioning instala la máquina.
+Provisioning instala lo mínimo imprescindible.
 
-Ansible la convierte en lo que debe ser.
+Ansible construye el sistema real.
 
 ---
 
-# 🔄 Flujo de ejecución
+# 🧭 Filosofía
 
-El sistema funciona así:
+Este diseño sigue un principio simple:
 
-1. Provisioning instala el sistema
-2. Se arranca el servicio `ansible-sync`
-3. Se descarga la configuración del host
-4. Se ejecuta el playbook
+> El sistema no se configura una vez.
+> Se corrige continuamente hasta alcanzar (y mantener) el estado deseado.
+
+Esto permite:
+
+* Reproducibilidad
+* Corrección automática de drift
+* Evolución sin reinstalar
+
+---
+
+# 🔄 Flujo completo
+
+1. Provisioning (cloud-init)
+
+   * Instala sistema base
+   * Configura red mínima
+   * Aplica cifrado / requisitos CCN
+   * Instala agente básico
+
+2. Arranque del sistema
+
+3. Se activa `ansible-sync`
+
+4. El nodo:
+
+   * Descarga configuración desde el servidor
+   * Sincroniza el repositorio
+   * Ejecuta Ansible
+
 5. Se aplican roles
-6. Se repite periódicamente (timer)
 
-👉 Resultado: sistema siempre convergente
+6. Se repite periódicamente
+
+👉 Resultado: sistema **autocorregido continuamente**
 
 ---
 
-# 📁 Estructura del módulo
+# 📦 Qué hace realmente Ansible
+
+Ansible NO instala el sistema.
+
+Ansible:
+
+* Aplica configuración declarativa
+* Mantiene el estado del sistema
+* Corrige desviaciones
+* Ejecuta cambios de forma idempotente
+
+---
+
+# 📁 Estructura real del módulo
 
 ```
 configs/ansible/
@@ -42,13 +78,8 @@ configs/ansible/
 ├── playbooks/
 │   └── bootstrap.yaml
 └── roles/
-    └── base-common/
-        └── tasks/
-            ├── main.yaml
-            ├── repo-sync.yaml
-            ├── playbook-runner.yaml
-            ├── users.yaml
-            └── updates.yaml
+    ├── bootstrap-agent/
+    └── ccn-base/
 ```
 
 ---
@@ -57,96 +88,120 @@ configs/ansible/
 
 `playbooks/bootstrap.yaml`
 
-```yaml
-- name: Bootstrap localhost
-  hosts: localhost
-  connection: local
-  become: true
+Este playbook es intencionadamente simple:
 
-  tasks:
-    - name: Ejecutar roles definidos
-      include_role:
-        name: "{{ item }}"
-      loop: "{{ automation.roles | default([]) }}"
+* No contiene lógica
+* No contiene decisiones
+* Solo ejecuta roles
+
+Funciona como un "dispatcher":
+
 ```
-
-👉 No contiene lógica
-👉 Solo ejecuta roles
+automation.roles → lista de roles a ejecutar
+```
 
 ---
 
 # 🧩 Roles
 
-Un **rol** es una unidad reutilizable de configuración.
+Los roles son el núcleo del sistema.
 
-Ejemplo:
+Cada rol:
 
-* usuarios
-* servicios
-* hardening
-* paquetes
+* Implementa una capacidad concreta
+* Es reutilizable
+* Es independiente
+
+Ejemplos reales:
+
+## bootstrap-agent
+
+Responsable de:
+
+* Sincronizar repositorio
+* Ejecutar Ansible periódicamente
+* Instalar servicios systemd
+
+👉 Es el "motor de convergencia"
 
 ---
 
-# 🔁 main.yaml
+## ccn-base
 
-Cada rol tiene un `main.yaml` que define qué tareas ejecutar:
+Responsable de hardening del sistema:
+
+* PAM
+* SSH
+* auditd
+* sysctl
+* servicios
+* crypto
+* bootloader
+* antimalware
+* usbguard
+* updates
+
+👉 Es la "línea base de seguridad"
+
+---
+
+# 🔁 Orquestación interna
+
+Cada rol tiene un `main.yaml` que define el orden de ejecución.
+
+Ejemplo típico:
 
 ```yaml
-- import_tasks: repo-sync.yaml
-- import_tasks: playbook-runner.yaml
-- import_tasks: users.yaml
-- import_tasks: updates.yaml
+- import_tasks: pam.yaml
+- import_tasks: ssh.yaml
+- import_tasks: auditd.yaml
 ```
 
-👉 Es el "orquestador interno" del rol
+👉 Esto permite:
+
+* Modularidad
+* Orden controlado
+* Separación por capacidades
 
 ---
 
-# ⚙️ Tipos de tareas actuales
+# ⚙️ Servicios que crea el sistema
 
-## repo-sync
+El sistema instala y mantiene:
 
-* Mantiene el repositorio actualizado
-* Usa git pull
-* Ejecutado por timer systemd
+## ansible-sync
 
-👉 Garantiza código actualizado
+Wrapper que ejecuta:
+
+1. Sincronización del repositorio
+2. Ejecución de Ansible
 
 ---
 
-## playbook-runner
+## ansible-repo-sync
 
-* Ejecuta Ansible periódicamente
+* Hace clone/pull del repositorio
+* Garantiza código actualizado
+
+---
+
+## ansible-apply
+
 * Descarga configuración del host
-* Aplica roles
-
-👉 Garantiza convergencia continua
+* Ejecuta playbook
 
 ---
 
-## users
+## Timer
 
-* Crea usuarios
-* Gestiona contraseñas
-* Añade claves SSH
-
-👉 Sustituye configuración manual
+* Ejecuta el ciclo periódicamente
+* Mantiene la convergencia
 
 ---
 
-## updates
+# 🔐 Variables (configuración dinámica)
 
-* Define actualización automática
-* Crea servicio + timer
-
-👉 Ejemplo de "estado + ejecución"
-
----
-
-# 🔐 Variables
-
-Las variables vienen del provisioning:
+Cada nodo obtiene su configuración desde:
 
 ```
 http://boot.local/ds/<mac>/ansible
@@ -157,7 +212,8 @@ Ejemplo:
 ```yaml
 automation:
   roles:
-    - base-common
+    - ccn-base
+    - bootstrap-agent
 
   repo:
     url: ...
@@ -165,93 +221,86 @@ automation:
   apply:
     interval: 1h
 
-  vars:
-    users:
-      - name: xavor
+users:
+  - name: xavor
 ```
+
+👉 Importante:
+
+* La lógica está en el repo
+* La configuración está fuera
 
 ---
 
-# ⚠️ Principios importantes
+# ⚠️ Principios clave
 
 ## Idempotencia
 
-* Ejecutar 1 vez = ejecutar 100 veces
-* Resultado siempre igual
+Ejecutar 1 o 100 veces produce el mismo resultado.
 
 ---
 
 ## Declarativo
 
-No se define *cómo*, sino *qué estado debe existir*
+Se define el estado deseado, no los pasos.
 
 ---
 
 ## Modularidad
 
-* Cada rol hace una cosa
-* Se pueden combinar
+Cada rol resuelve un problema concreto.
 
 ---
 
 ## Separación de responsabilidades
 
-* provisioning → instalación
-* ansible → configuración
-
----
-
-# 🔄 Servicios systemd
-
-Ansible instala y mantiene:
-
-* `infraserver-repo-sync`
-* `infraserver-apply`
-
-👉 Importante:
-
-Provisioning solo hace bootstrap
-Ansible es quien mantiene estos servicios
+* Provisioning → arranque mínimo
+* Ansible → sistema completo
 
 ---
 
 # 🧪 Debug
 
-Logs principales:
+Logs:
 
 ```bash
-cat /var/log/infraserver/apply.log
-cat /var/log/infraserver/repo-sync.log
+/var/log/infraserver/apply.log
+/var/log/infraserver/repo-sync.log
 ```
 
 Systemd:
 
 ```bash
-systemctl status infraserver-apply.timer
-systemctl status infraserver-repo-sync.timer
+systemctl status ansible-sync.timer
+systemctl status ansible-sync.service
 ```
 
 ---
 
-# 🎯 Objetivo
+# 🎯 Qué consigues con este modelo
 
+* Sistemas reproducibles
 * Infraestructura declarativa
-* Configuración reproducible
-* Evolución sin reinstalar
-* Base para GitOps real
+* Cambios controlados desde Git
+* Sin necesidad de reinstalar
 
 ---
 
-# 🧭 Evolución futura
+# 🚀 Hacia dónde evoluciona
 
-Este módulo permite:
+Este modelo permite escalar a:
 
-* Hardening STIC en roles
-* Instalación de servicios (k3s, etc.)
-* Configuración de red avanzada
+* GitOps completo
+* Edge computing autónomo
+* Despliegues masivos
 * Integración con Kubernetes
 
 ---
 
-👉 Ansible es el cerebro de la infraestructura
-Provisioning solo es el arranque
+# 🧠 Resumen final
+
+Provisioning enciende el nodo.
+
+Ansible lo convierte en infraestructura.
+
+Y lo mantiene así continuamente.
