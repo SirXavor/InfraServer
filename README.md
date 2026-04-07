@@ -18,13 +18,14 @@ InfraServer está diseñado con una premisa explícita:
 
 > **Si no escala, no sirve.**
 
-El sistema debe poder desplegar y mantener **decenas o cientos de nodos (especialmente edge)** con:
+El sistema debe poder desplegar y mantener **cientos o miles de nodos (especialmente edge desechable)** con:
 
 * Configuración declarativa por host
 * Perfiles reutilizables
 * Provisioning sin intervención
 * Convergencia automática
 * Operación predecible
+* **Y SIN OPERADOR**
 
 👉 En la práctica, **añadir un nodo equivale a añadir un YAML al repositorio**.
 
@@ -199,13 +200,6 @@ Perfil orientado a entornos edge con seguridad estricta:
 
 ---
 
-InfraServer está especialmente diseñado para entornos edge:
-
-* Nodos desechables o reemplazables
-* Hardware heterogéneo
-* Conectividad intermitente
-* Riesgo físico elevado
-
 ## 🔹 Principios
 
 * Provisioning automático
@@ -301,78 +295,6 @@ InfraServer incluye:
 * Infraestructura reproducible
 * Separación de responsabilidades
 * Escalabilidad real
-
----
-
-# 🚀 Bootstrap Kubernetes
-
-Una vez el nodo está preparado:
-
-```bash
-curl -sfL https://get.k3s.io | \
-  INSTALL_K3S_EXEC="--disable traefik --disable servicelb --write-kubeconfig-mode=644" \
-  sh -
-```
-
-```bash
-kubectl taint nodes --all node-role.kubernetes.io/control-plane- || true
-kubectl taint nodes --all node-role.kubernetes.io/master:NoSchedule- || true
-```
-
-```bash
-curl -s https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh | bash
-sudo mv kustomize /usr/local/bin/
-```
-
-```bash
-git clone https://github.com/SirXavor/InfraServer.git
-cd InfraServer
-```
-
-```bash
-kustomize build bootstrapInfra --enable-helm | kubectl apply -f -
-```
-
-```bash
-cd selfDeploy
-kubectl apply -f root.yaml
-```
-
-```bash
-kubectl -n argocd get secret argocd-initial-admin-secret \
-  -o jsonpath="{.data.password}" | base64 -d
-```
-
-Usuario:
-
-```
-admin
-```
-
----
-
-# 📦 Estructura del repositorio
-
-```
-bootstrapInfra/
-provisioning/
-dnsmasq/
-tftp-provisioning/
-coredns/
-selfDeploy/
-```
-
----
-
-# ⚙️ Principios clave
-
-* Provisioning mínimo
-* Seguridad desde el inicio
-* Convergencia continua
-* Git como fuente de verdad
-* Infraestructura reproducible
-* Separación de responsabilidades
-* Escalabilidad real (edge masivo)
 
 ---
 
