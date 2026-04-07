@@ -58,8 +58,8 @@ Solo deja el nodo en un estado:
 
 Para entender InfraServer completamente:
 
-* 👉 [Provisioning:](/configs/provisioning/readme.md)
-* 👉 [Convergencia con Ansible:](/configs/ansible/readme.md)
+* 👉 [Cloud-init:](/configs/cloud-init/readme.md)
+* 👉 [Ansible:](/configs/ansible/readme.md)
 
 Este documento es **la visión global**.
 
