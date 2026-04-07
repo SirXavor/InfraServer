@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: provisioning
+  name: tftp-provisioning
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/SirXavor/InfraServer.git
     targetRevision: main
-    path: provisioning
+    path: manifests/infraserver/tftp-provisioning
   destination:
     server: https://kubernetes.default.svc
-    namespace: provisioning
+    namespace: tftp-provisioning
   syncPolicy:
     automated:
       prune: true

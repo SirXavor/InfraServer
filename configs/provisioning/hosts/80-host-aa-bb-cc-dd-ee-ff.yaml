@@ -22,6 +22,7 @@ automation:
   roles:
     - bootstrap-agent
     - ccn-base
+    - k3s-edge
     
   vars:
     test_message: "Prueba de Ansible desde InfraServer"

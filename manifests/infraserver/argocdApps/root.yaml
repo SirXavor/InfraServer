@@ -1,20 +1,18 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: dnsmasq
+  name: infra-root
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/SirXavor/InfraServer.git
     targetRevision: main
-    path: dnsmasq
+    path: manifests/infraserver/argocdApps
   destination:
     server: https://kubernetes.default.svc
-    namespace: dnsmasq
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
-    syncOptions:
-      - CreateNamespace=true

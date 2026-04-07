@@ -1,0 +1,8 @@
+---
+k3s_version: ""
+k3s_disable_traefik: true
+k3s_disable_servicelb: true
+k3s_write_kubeconfig_mode: "644"
+k3s_server_args_extra: []
+k3s_kubectl_path: /usr/local/bin/kubectl
+k3s_kubeconfig: /etc/rancher/k3s/k3s.yaml

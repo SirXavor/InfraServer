@@ -1,0 +1,41 @@
+---
+- name: Instalar dependencias básicas
+  apt:
+    name:
+      - curl
+      - ca-certificates
+    state: present
+    update_cache: true
+
+- name: Comprobar si k3s ya está instalado
+  stat:
+    path: /usr/local/bin/k3s
+  register: k3s_binary
+
+- name: Construir flags de instalación de k3s
+  set_fact:
+    k3s_install_flags: >-
+      {{
+        [
+          '--write-kubeconfig-mode=' ~ k3s_write_kubeconfig_mode
+        ]
+        + (['--disable traefik'] if k3s_disable_traefik else [])
+        + (['--disable servicelb'] if k3s_disable_servicelb else [])
+        + k3s_server_args_extra
+      }}
+
+- name: Instalar k3s
+  shell: |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_EXEC="{{ k3s_install_flags | join(' ') }}" \
+      {% if k3s_version | length > 0 %}INSTALL_K3S_VERSION="{{ k3s_version }}" \{% endif %}
+      sh -
+  args:
+    executable: /bin/bash
+  when: not k3s_binary.stat.exists
+
+- name: Asegurar que k3s está habilitado y arrancado
+  systemd:
+    name: k3s
+    enabled: true
+    state: started

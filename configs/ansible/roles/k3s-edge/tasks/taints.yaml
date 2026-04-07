@@ -1,0 +1,28 @@
+---
+- name: Esperar a que kubeconfig de k3s exista
+  stat:
+    path: /etc/rancher/k3s/k3s.yaml
+  register: k3s_kubeconfig
+  retries: 20
+  delay: 3
+  until: k3s_kubeconfig.stat.exists
+
+- name: Quitar taint control-plane
+  command: "{{ k3s_kubectl_path }} taint nodes --all node-role.kubernetes.io/control-plane-"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: taint_control_plane
+  failed_when: false
+  changed_when: >
+    'untainted' in taint_control_plane.stdout or
+    'taint' in taint_control_plane.stdout
+
+- name: Quitar taint master
+  command: "{{ k3s_kubectl_path }} taint nodes --all node-role.kubernetes.io/master:NoSchedule-"
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml
+  register: taint_master
+  failed_when: false
+  changed_when: >
+    'untainted' in taint_master.stdout or
+    'taint' in taint_master.stdout

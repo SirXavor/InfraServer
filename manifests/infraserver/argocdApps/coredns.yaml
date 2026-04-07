@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: tang
+  name: coredns
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/SirXavor/InfraServer.git
     targetRevision: main
-    path: tang
+    path: manifests/infraserver/coredns
   destination:
     server: https://kubernetes.default.svc
-    namespace: tang
+    namespace: dns
   syncPolicy:
     automated:
       prune: true

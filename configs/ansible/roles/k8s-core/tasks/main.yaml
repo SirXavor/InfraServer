@@ -1,0 +1,4 @@
+---
+- import_tasks: install.yaml
+- import_tasks: taints.yaml
+- import_tasks: kustomize.yaml

@@ -1,17 +1,17 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: tftp-provisioning
+  name: tang
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/SirXavor/InfraServer.git
     targetRevision: main
-    path: tftp-provisioning
+    path: manifests/infraserver/tang
   destination:
     server: https://kubernetes.default.svc
-    namespace: tftp-provisioning
+    namespace: tang
   syncPolicy:
     automated:
       prune: true

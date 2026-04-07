@@ -1,0 +1,49 @@
+---
+- name: Detectar arquitectura
+  set_fact:
+    kustomize_arch: "{{ kustomize_arch_map[ansible_architecture] | default('amd64') }}"
+
+- name: Comprobar si kustomize ya está instalado
+  stat:
+    path: /usr/local/bin/kustomize
+  register: kustomize_binary
+
+- name: Descargar kustomize
+  get_url:
+    url: "https://github.com/kubernetes-sigs/kustomize/releases/download/kustomize%2F{{ kustomize_version }}/kustomize_{{ kustomize_version }}_linux_{{ kustomize_arch }}.tar.gz"
+    dest: /tmp/kustomize.tar.gz
+    mode: "0644"
+  when: not kustomize_binary.stat.exists
+
+- name: Crear directorio temporal para kustomize
+  file:
+    path: /tmp/kustomize-extract
+    state: directory
+    mode: "0755"
+  when: not kustomize_binary.stat.exists
+
+- name: Descomprimir kustomize
+  unarchive:
+    src: /tmp/kustomize.tar.gz
+    dest: /tmp/kustomize-extract
+    remote_src: true
+  when: not kustomize_binary.stat.exists
+
+- name: Instalar binario kustomize
+  copy:
+    src: /tmp/kustomize-extract/kustomize
+    dest: /usr/local/bin/kustomize
+    owner: root
+    group: root
+    mode: "0755"
+    remote_src: true
+  when: not kustomize_binary.stat.exists
+
+- name: Limpiar temporales de kustomize
+  file:
+    path: "{{ item }}"
+    state: absent
+  loop:
+    - /tmp/kustomize.tar.gz
+    - /tmp/kustomize-extract
+  when: not kustomize_binary.stat.exists
