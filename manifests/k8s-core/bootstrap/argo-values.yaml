@@ -1,0 +1,16 @@
+nameOverride: argocd
+
+applicationset:
+  enabled: false
+
+server:
+  ingress:
+    enabled: true
+    ingressClassName: "nginx"
+    hostname: "argocd.local"
+    path: /
+    pathType: Prefix
+    tls: false
+    annotations:
+      nginx.ingress.kubernetes.io/backend-protocol: "HTTPS"
+      nginx.ingress.kubernetes.io/ssl-passthrough: "true"

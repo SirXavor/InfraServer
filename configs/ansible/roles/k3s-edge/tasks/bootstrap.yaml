@@ -1,0 +1,6 @@
+---
+- name: Aplicar bootstrap de k3s-edge con kustomize
+  command: >
+    kubectl apply -k /opt/InfraServer/manifests/k3s-edge/bootstrap
+  environment:
+    KUBECONFIG: /etc/rancher/k3s/k3s.yaml

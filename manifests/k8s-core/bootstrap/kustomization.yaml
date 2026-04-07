@@ -2,7 +2,6 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
 resources:
-  - namespace.yaml
   - ingress-nginx.yaml
   - metallb/
 
@@ -12,5 +11,5 @@ helmCharts:
     version: 8.0.0
     releaseName: argocd
     namespace: argocd
-    valuesFile: values.yaml
+    valuesFile: argo-values.yaml
     includeCRDs: true
