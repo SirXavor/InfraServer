@@ -124,9 +124,10 @@ kubectl apply -k manifests/k3s-edge/bootstrap
 
 👉 Stack típico:
 
-* MetalLB
-* Ingress
-* Servicios locales
+* VPN server/client
+* Apolo
+* Argos / Frigate / IA
+* Radio Chat
 
 👉 Sin dependencia de control central
 
