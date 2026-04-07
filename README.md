@@ -1,4 +1,4 @@
-# InfraServer — Bootstrap GitOps + Provisioning + Convergencia con Ansible
+# InfraServer — Provisioning + Convergencia + Kubernetes Declarativo
 
 InfraServer no es un clúster Kubernetes.
 
@@ -7,7 +7,8 @@ Es un **sistema completo de despliegue de infraestructura** orientado a entornos
 1. Se instalan automáticamente (provisioning)
 2. Arrancan en un estado base seguro
 3. Convergen a su estado final
-4. Pasan a operación bajo GitOps
+4. Despliegan su plataforma (Kubernetes si aplica)
+5. Pasan a operación bajo Git
 
 ---
 
@@ -34,7 +35,7 @@ El sistema debe poder desplegar y mantener **decenas o cientos de nodos (especia
 Separación estricta de responsabilidades:
 
 ```
-Provisioning → Convergencia (Ansible) → Operación (GitOps)
+Provisioning → Convergencia (Ansible) → Plataforma (Kubernetes) → Operación (Git)
 ```
 
 ## 🔹 Principio clave
@@ -73,8 +74,9 @@ DHCP → PXE → iPXE → HTTP → cloud-init → sistema mínimo → Ansible �
 2. Instalación automática
 3. Sistema base seguro
 4. Convergencia con Ansible
-5. Kubernetes (si aplica)
-6. GitOps toma control
+5. Despliegue de Kubernetes (si aplica)
+6. Aplicación de manifiestos
+7. Operación
 
 ---
 
@@ -103,154 +105,202 @@ DHCP → PXE → iPXE → HTTP → cloud-init → sistema mínimo → Ansible �
 
 ---
 
-## 3. Operación (día 2)
+## 3. Plataforma (día 1+)
 
-Dependiendo del entorno:
+En esta fase el nodo pasa a ejecutar su función real.
 
-### 🔹 Core
+### 🔹 Edge (k3s autónomo)
 
-* Kubernetes desplegado
-* ArgoCD activo
-* Git como fuente de verdad
+El nodo:
 
-👉 **GitOps centralizado y continuo**
+* Instala K3s
+* Elimina restricciones iniciales (taints)
+* Aplica un **bootstrap declarativo** mediante manifests
+
+```bash
+kubectl apply -k manifests/k3s-edge/bootstrap
+```
+
+👉 Stack típico:
+
+* MetalLB
+* Ingress
+* Servicios locales
+
+👉 Sin dependencia de control central
 
 ---
 
+### 🔹 Core (Kubernetes + ArgoCD)
+
+El nodo forma parte de un clúster más complejo:
+
+* Kubernetes completo
+* ArgoCD instalado
+* Helm/Kustomize gestionado por GitOps
+
+👉 Flujo:
+
+* Bootstrap mínimo del clúster
+* ArgoCD toma control
+* Despliegues gestionados desde Git
+
+👉 Stack típico:
+
+* Ingress avanzado
+* Cert-manager
+* Rook/Ceph u otro almacenamiento
+* Aplicaciones corporativas
+
+---
+
+## 4. Operación (día 2)
+
 ### 🔹 Edge
 
-* Kubernetes local (k3s)
-* Sin dependencia de control central en tiempo real
-* GitOps aplicado localmente
+* Operación autónoma
+* Convergencia periódica con Ansible
+* Aplicación directa de manifests
 
-👉 **GitOps autónomo y resiliente**
+---
+
+### 🔹 Core
+
+* Operación centralizada
+* GitOps continuo (ArgoCD)
+* Observabilidad, control y auditoría
 
 ---
 
 # 🛰️ Modelo Edge
 
-InfraServer está especialmente diseñado para entornos edge, donde se asume:
+InfraServer está especialmente diseñado para entornos edge:
 
 * Nodos desechables o reemplazables
 * Hardware heterogéneo
 * Conectividad intermitente
 * Riesgo físico elevado
 
-## 🔹 Principios de diseño en edge
+---
 
-* Identidad basada en múltiples MACs
-* Provisioning completamente automático
-* Configuración generada por plantillas + variables por host
-* Convergencia desde Git mediante Ansible
-* Sin dependencia de control central en tiempo real
+## 🔐 Perfil: edge-tang-storage
 
-## 🔹 Qué permite este modelo
+Perfil orientado a entornos edge con seguridad estricta:
 
-* Desplegar muchos nodos con el mismo perfil
-* Ajustar diferencias por host vía YAML
-* Reinstalar nodos sin intervención manual
-* Mantener comportamiento homogéneo
+* Particionado estándar
+* LVM
+* Cifrado LUKS
+* Sin TPM2
+* Desbloqueo exclusivamente mediante Tang
+* Requiere red en initramfs
+
+👉 El nodo **solo arranca si puede contactar con Tang**
+👉 Evita arranque fuera del perímetro
 
 ---
 
-# 📦 Stack típico de un nodo edge
+InfraServer está especialmente diseñado para entornos edge:
 
-Un nodo edge puede desplegar, por ejemplo:
+* Nodos desechables o reemplazables
+* Hardware heterogéneo
+* Conectividad intermitente
+* Riesgo físico elevado
 
-* **Apolo** — servicios de apoyo en terreno
-* **VPN** — túnel seguro hacia el core
-* **Argos / Frigate / IA** — análisis de vídeo e inferencia local
-* **Radiochat** — comunicaciones en entorno degradado
+## 🔹 Principios
 
-## 🔹 Cómo se define
-
-* Roles de Ansible
-* Plantillas Helm propias
-* Variables declaradas en el YAML del host
+* Provisioning automático
+* Identidad por MAC
+* Convergencia desde Git
+* Sin dependencia del core en tiempo real
 
 ## 🔹 Resultado
 
-Cada nodo edge:
+Cada nodo:
 
-* Se instala automáticamente
-* Se cifra y securiza
-* Se configura con su stack específico
-* Se puede reproducir o reemplazar sin intervención
-
-👉 Todo está descrito en Git y es reproducible.
+* Se instala solo
+* Se configura solo
+* Despliega su stack
+* Es reproducible
 
 ---
 
-# 🔄 GitOps en InfraServer
+# 📦 Despliegue de Kubernetes
 
-## 🛰️ Edge (sin ArgoCD)
+El despliegue de Kubernetes no se define en Ansible.
 
-Los nodos edge operan en entornos:
+👉 Se define en **manifests declarativos** dentro del repositorio.
 
-* Desconectados
-* Hostiles
-* Con hardware limitado
-* Sin alta disponibilidad
+Ejemplo de estructura:
 
-Por eso **no usan ArgoCD**.
+```
+manifests/
+  k3s-edge/
+    bootstrap/
+      kustomization.yaml
+    metallb/
+    ingress/
+```
 
-En su lugar:
+## 🔹 Bootstrap
 
-* Plantillas Helm propias
-* Variables declarativas por host
-* Renderizado local mediante Ansible
-* Aplicación directa sobre k3s
-* Convergencia periódica desde Git
+El bootstrap compone el stack:
 
-👉 Resultado:
+```yaml
+resources:
+  - ../metallb/
+  - ../ingress/
+```
 
-* Despliegues reproducibles
-* Configuración declarativa
-* Independencia del core
-* Operación autónoma
+👉 Añadir un componente = añadir una línea
 
 ---
 
-## 🧭 Core (con ArgoCD)
+# 🧠 Separación clave
 
-El core sí usa ArgoCD porque:
-
-* Tiene conectividad estable
-* Aloja servicios críticos
-* Requiere despliegues frecuentes
-* Necesita auditoría y rollback
-
-👉 Modelo:
-
-* GitOps centralizado
-* Control continuo del estado
+| Capa         | Responsabilidad          |
+| ------------ | ------------------------ |
+| Provisioning | Instalar nodo            |
+| Ansible      | Configurar sistema       |
+| Kustomize    | Definir stack Kubernetes |
+| Git          | Fuente de verdad         |
 
 ---
 
 # 🏗️ Cadena de arranque
 
-InfraServer incluye toda la infraestructura necesaria:
+InfraServer incluye:
 
-## DHCP Proxy (dnsmasq)
+## DHCP (dnsmasq)
 
 * Detecta BIOS / UEFI
 * Entrega iPXE
 
 ## TFTP
 
-* `undionly.kpxe` (BIOS)
-* `ipxe.efi` (UEFI)
+* undionly.kpxe
+* ipxe.efi
 
-## HTTP Boot (kernel-provisioning)
+## HTTP Boot
 
 * Kernel + initrd
-* Menú iPXE
-* Configuración dinámica por MAC
+* Configuración dinámica
 
-## DNS (CoreDNS)
+## DNS
 
 * Resolución interna
-* Servicios del clúster
+
+---
+
+# ⚙️ Principios clave
+
+* Provisioning mínimo
+* Seguridad desde el inicio
+* Convergencia continua
+* Kubernetes declarativo
+* Git como fuente de verdad
+* Infraestructura reproducible
+* Separación de responsabilidades
+* Escalabilidad real
 
 ---
 
@@ -330,10 +380,12 @@ selfDeploy/
 
 Provisioning inicia el nodo.
 
-Ansible lo convierte en infraestructura.
+Ansible lo convierte en sistema.
 
-GitOps lo mantiene en producción.
+Kubernetes despliega la plataforma.
 
-👉 Todo definido en Git.
+Git define el estado.
+
 👉 Todo reproducible.
+👉 Todo automatizado.
 👉 Todo escalable.
