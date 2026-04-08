@@ -74,3 +74,15 @@
     name: ssh
     state: restarted
   when: sshd_validation.rc == 0
+
+- name: Configurar MOTD de seguridad
+  copy:
+    dest: /etc/motd
+    owner: root
+    group: root
+    mode: "0644"
+    content: |
+      AVISO IMPORTANTE DE SEGURIDAD
+
+      Acceso restringido. Sistema monitorizado.
+      El uso no autorizado está prohibido y será registrado.

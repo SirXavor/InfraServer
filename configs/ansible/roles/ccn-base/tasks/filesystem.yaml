@@ -89,3 +89,17 @@
     group: root
     mode: "0640"
   failed_when: false
+
+- name: Proteger homes de usuarios normales
+  file:
+    path: "/home/{{ item }}"
+    owner: "{{ item }}"
+    group: "{{ item }}"
+    mode: "0700"
+  loop: >-
+    {{
+      users | default([])
+      | map(attribute='name')
+      | list
+    }}
+  failed_when: false

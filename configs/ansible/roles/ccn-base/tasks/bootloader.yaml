@@ -20,6 +20,13 @@
     block: |
       set superusers="{{ bootloader_grub_user }}"
       password_pbkdf2 {{ bootloader_grub_user }} {{ bootloader_grub_password_pbkdf2 }}
+  backup: true
+
+- name: Permitir arranque normal sin contraseña en GRUB
+  lineinfile:
+    path: /etc/grub.d/10_linux
+    regexp: '^CLASS='
+    line: 'CLASS="--class gnu-linux --class gnu --class os --unrestricted"'
     backup: true
 
 - name: Eliminar posibles entradas rescue
