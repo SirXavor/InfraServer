@@ -4,14 +4,6 @@ name: network
 match:
   distro: rhel
 
-autoinstall:
-  version: 1
-
+kickstart:
   network:
-    version: 2
-
-    ethernets:
-      eth0:
-        dhcp4: true
-        dhcp6: false
-        optional: true
+    ...
