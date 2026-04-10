@@ -1,41 +1,32 @@
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 
+namespace: provisioning
+
 configMapGenerator:
   - name: provisioning-configs
-    namespace: provisioning
     files:
-      # ----------------------------
-      # Base Ubuntu
-      # ----------------------------
-      - ubuntu-00-installer.yaml=base/ubuntu/00-installer.yaml
-      - ubuntu-10-network.yaml=base/ubuntu/10-network.yaml
-      - ubuntu-30-automation.yaml=base/ubuntu/30-automation.yaml
-
-      # ----------------------------
       # Base RHEL
-      # ----------------------------
-      - rhel-00-installer.yaml=base/rhel/00-installer.yaml
-      - rhel-10-network.yaml=base/rhel/10-network.yaml
-      - rhel-30-automation.yaml=base/rhel/30-automation.yaml
+      - base/rhel/00-rhel-installer.yaml
+      - base/rhel/10-rhel-network.yaml
+      - base/rhel/30-rhel-automation.yaml
 
-      # ----------------------------
-      # Profiles Ubuntu
-      # ----------------------------
-      - ubuntu-20-profile-default-storage.yaml=profiles/ubuntu/20-profile-default-storage.yaml
-      - ubuntu-20-profile-edge-tang-storage.yaml=profiles/ubuntu/20-profile-edge-tang-storage.yaml
-      - ubuntu-20-profile-noswap-storage.yaml=profiles/ubuntu/20-profile-noswap-storage.yaml
+      # Base Ubuntu
+      - base/ubuntu/00-ubuntu-installer.yaml
+      - base/ubuntu/10-ubuntu-network.yaml
+      - base/ubuntu/30-ubuntu-automation.yaml
 
-      # ----------------------------
       # Profiles RHEL
-      # ----------------------------
-      - rhel-20-profile-default-storage.yaml=profiles/rhel/20-profile-default-storage.yaml
-      - rhel-20-profile-edge-tang-storage.yaml=profiles/rhel/20-profile-edge-tang-storage.yaml
-      - rhel-20-profile-noswap-storage.yaml=profiles/rhel/20-profile-noswap-storage.yaml
+      - profiles/rhel/20-rhel-default-storage.yaml
+      - profiles/rhel/20-rhel-edge-tang-storage.yaml
+      - profiles/rhel/20-rhel-noswap-storage.yaml
 
-      # ----------------------------
+      # Profiles Ubuntu
+      - profiles/ubuntu/20-ubuntu-default-storage.yaml
+      - profiles/ubuntu/20-ubuntu-edge-tang-storage.yaml
+      - profiles/ubuntu/20-ubuntu-noswap-storage.yaml
+
       # Hosts
-      # ----------------------------
       - hosts/80-host-default.yaml
       - hosts/80-host-aa-bb-cc-dd-ee-ff.yaml
       - hosts/80-host-00-bb-cc-dd-ee-00.yaml
