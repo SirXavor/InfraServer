@@ -1,5 +1,5 @@
 kind: host
-name: edge-node-17
+name: edge-node-19
 
 identity:
   mac:
