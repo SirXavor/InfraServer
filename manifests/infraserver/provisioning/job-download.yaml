@@ -15,20 +15,26 @@ spec:
             - sh
             - -c
             - |
-              TARGET="/iso/ubuntu-24.04.4-live-server-amd64.iso"
+              set -e
+
+              mkdir -p /content/ubuntu
+              TARGET="/content/ubuntu/ubuntu-24.04.4-live-server-amd64.iso"
+
               if [ -f "$TARGET" ]; then
                 echo "ISO ya existe, nada que hacer."
                 exit 0
               fi
-              echo "Descargando ISO..."
+
+              echo "Descargando ISO de Ubuntu..."
               curl -L --retry 5 --retry-delay 10 \
                 -o "$TARGET" \
                 https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso
+
               echo "Descarga completada."
           volumeMounts:
-            - name: iso-storage
-              mountPath: /iso
+            - name: provisioning-content
+              mountPath: /content
       volumes:
-        - name: iso-storage
+        - name: provisioning-content
           persistentVolumeClaim:
-            claimName: ubuntu-iso
+            claimName: provisioning-content

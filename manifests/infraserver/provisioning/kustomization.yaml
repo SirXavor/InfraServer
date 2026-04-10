@@ -3,7 +3,7 @@ resources:
   - deployment-kernel.yaml
   - service-kernel.yaml
   - ingress.yaml
-  - pvc-iso.yaml
+  - pvc-provisioning.yaml
   - job-download.yaml
   - ../../../configs/provisioning
 

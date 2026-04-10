@@ -28,13 +28,13 @@ spec:
         volumeMounts:
         - name: configs
           mountPath: /configs
-        - name: iso-storage
-          mountPath: /var/www/html/ubuntu
+        - name: provisioning-content
+          mountPath: /var/www/html
           readOnly: true
       volumes:
       - name: configs
         configMap:
           name: provisioning-configs
-      - name: iso-storage
+      - name: provisioning-content
         persistentVolumeClaim:
-          claimName: ubuntu-iso
+          claimName: provisioning-content
