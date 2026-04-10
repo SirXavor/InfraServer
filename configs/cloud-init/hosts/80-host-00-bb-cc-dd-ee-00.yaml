@@ -3,7 +3,7 @@ name: edge-node-17
 
 identity:
   mac:
-    - aa-bb-cc-dd-ee-00
+    - 00-bb-cc-dd-ee-00
 
 profile: noswap
 hostname: k3s-master
