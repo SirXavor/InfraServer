@@ -6,4 +6,7 @@ match:
 
 kickstart:
   network:
-    ...
+    bootproto: dhcp
+    device: link
+    activate: true
+    ipv6: false

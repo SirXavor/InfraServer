@@ -7,4 +7,45 @@ match:
 kickstart:
   lang: es_ES.UTF-8
   keyboard: es
-  timezone: Europe/Madrid
+  timezone: Europe/Madrid --utc
+
+  root:
+    lock: true
+
+  user:
+    name: xavor
+    password: '$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA.'
+    groups:
+      - wheel
+
+  ssh:
+    enabled: true
+    authorized_keys:
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMdSPnfzS2L6RdbZl9Tc/mdjMucVt03Z+JeY/Uhb5mV Casa
+      - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG Portatil-Aux
+    password_auth: false
+
+  packages:
+    - python3
+    - openssh-server
+    - curl
+    - vim
+    - sudo
+    - ca-certificates
+    - git
+    - ansible
+
+  post:
+    - |
+      set -euo pipefail
+
+      IFACE="$(ip route show default | awk '/default/ {print $5}' | head -1)"
+      if [ -n "$IFACE" ] && [ -e "/sys/class/net/$IFACE/address" ]; then
+        MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
+        mkdir -p /etc/infraserver
+        printf '%s\n' \
+          "DS_URL=http://boot.local" \
+          "CFG_DIR=/etc/infraserver" \
+          > /etc/infraserver/runtime.env
+      fi

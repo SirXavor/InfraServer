@@ -5,5 +5,114 @@ match:
   distro: rhel
 
 kickstart:
-  late-commands:
-    ...
+  post:
+    - |
+      set -euo pipefail
+
+      dnf install -y git ansible curl python3 ca-certificates
+
+    - |
+      set -euo pipefail
+
+      mkdir -p /etc/infraserver /var/log/infraserver
+      cat > /etc/infraserver/bootstrap.env << "EOF"
+      DS_URL="http://192.168.1.70:8081"
+      CFG_DIR="/etc/infraserver"
+      REPO_URL="https://github.com/SirXavor/InfraServer.git"
+      REPO_DIR="/opt/InfraServer"
+      EOF
+      chmod 600 /etc/infraserver/bootstrap.env
+
+    - |
+      set -euo pipefail
+
+      source /etc/infraserver/bootstrap.env
+      if [ ! -d "$REPO_DIR/.git" ]; then
+        git clone "$REPO_URL" "$REPO_DIR"
+      fi
+
+    - |
+      cat > /usr/local/sbin/ansible-repo-sync.sh << "EOF"
+      #!/bin/bash
+      set -euo pipefail
+
+      source /etc/infraserver/bootstrap.env
+
+      LOG_FILE="/var/log/infraserver/repo-sync.log"
+      exec >>"$LOG_FILE" 2>&1
+
+      echo "===== $(date) :: inicio repo-sync ====="
+
+      if [ ! -d "$REPO_DIR/.git" ]; then
+        git clone "$REPO_URL" "$REPO_DIR"
+      else
+        git -C "$REPO_DIR" pull --ff-only
+      fi
+
+      echo "===== $(date) :: fin repo-sync ====="
+      EOF
+      chmod 755 /usr/local/sbin/ansible-repo-sync.sh
+
+    - |
+      cat > /usr/local/sbin/ansible-apply.sh << "EOF"
+      #!/bin/bash
+      set -euo pipefail
+
+      source /etc/infraserver/bootstrap.env
+
+      LOG_FILE="/var/log/infraserver/apply.log"
+      exec >>"$LOG_FILE" 2>&1
+
+      echo "===== $(date) :: inicio apply ====="
+
+      mkdir -p "$CFG_DIR"
+
+      MAC=$(ip link show | awk "/link\\/ether/ {print \$2; exit}" | tr ":" "-")
+      curl -fsSL "${DS_URL}/ds/${MAC}/ansible" -o "$CFG_DIR/ansible.yml"
+
+      cd "$REPO_DIR/configs/ansible"
+      ansible-playbook -i localhost, -c local playbooks/bootstrap.yaml -e @"$CFG_DIR/ansible.yml"
+
+      echo "===== $(date) :: fin apply ====="
+      EOF
+      chmod 755 /usr/local/sbin/ansible-apply.sh
+
+    - |
+      cat > /usr/local/sbin/ansible-sync.sh << "EOF"
+      #!/bin/bash
+      set -euo pipefail
+
+      /usr/local/sbin/ansible-repo-sync.sh
+      /usr/local/sbin/ansible-apply.sh
+      EOF
+      chmod 755 /usr/local/sbin/ansible-sync.sh
+
+    - |
+      cat > /etc/systemd/system/ansible-sync.service << "EOF"
+      [Unit]
+      Description=InfraServer Ansible Sync
+      Wants=network-online.target
+      After=network-online.target
+
+      [Service]
+      Type=oneshot
+      ExecStart=/usr/local/sbin/ansible-sync.sh
+      EOF
+
+    - |
+      cat > /etc/systemd/system/ansible-sync.timer << "EOF"
+      [Unit]
+      Description=Run InfraServer Ansible Sync periodically
+
+      [Timer]
+      OnBootSec=2min
+      OnUnitActiveSec=1h
+      Persistent=true
+
+      [Install]
+      WantedBy=timers.target
+      EOF
+
+    - |
+      systemctl daemon-reload
+      systemctl enable ansible-sync.timer
