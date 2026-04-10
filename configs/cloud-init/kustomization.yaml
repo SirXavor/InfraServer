@@ -8,4 +8,5 @@ configMapGenerator:
       - profiles/20-profile-default-storage.yaml
       - profiles/20-profile-noswap-storage.yaml
       - hosts/80-host-aa-bb-cc-dd-ee-ff.yaml
+      - hosts/80-host-aa-bb-cc-dd-ee-00.yaml
       - hosts/80-host-default.yaml
