@@ -1,0 +1,254 @@
+kind: profile
+name: edge-node
+
+match:
+  distro: ubuntu
+
+autoinstall:
+  version: 1
+
+  storage:
+    config:
+      - id: disk-sda
+        type: disk
+        path: /dev/sda
+        ptable: gpt
+        wipe: superblock-recursive
+        grub_device: true
+
+      - id: part-efi
+        type: partition
+        device: disk-sda
+        size: 512M
+        flag: esp
+        grub_device: true
+
+      - id: part-boot
+        type: partition
+        device: disk-sda
+        size: 2G
+
+      - id: part-root-crypt
+        type: partition
+        device: disk-sda
+        size: -1
+
+      - id: fs-efi
+        type: format
+        volume: part-efi
+        fstype: fat32
+
+      - id: fs-boot
+        type: format
+        volume: part-boot
+        fstype: ext4
+
+      - id: luks-root
+        type: dm_crypt
+        volume: part-root-crypt
+        key: "InfraK3s-2026"
+        cipher: aes-xts-plain64
+        keysize: 512
+
+      - id: vg-system
+        type: lvm_volgroup
+        name: vg_system
+        devices:
+          - luks-root
+
+      - id: lv-root
+        type: lvm_partition
+        name: lv_root
+        volgroup: vg-system
+        size: 30G
+
+      - id: lv-varlog
+        type: lvm_partition
+        name: lv_varlog
+        volgroup: vg-system
+        size: 10G
+
+      - id: lv-tmp
+        type: lvm_partition
+        name: lv_tmp
+        volgroup: vg-system
+        size: 8G
+
+      - id: lv-vartmp
+        type: lvm_partition
+        name: lv_vartmp
+        volgroup: vg-system
+        size: 8G
+
+      - id: lv-home
+        type: lvm_partition
+        name: lv_home
+        volgroup: vg-system
+        size: 10G
+
+      - id: lv-swap
+        type: lvm_partition
+        name: lv_swap
+        volgroup: vg-system
+        size: 8G
+
+      - id: lv-var
+        type: lvm_partition
+        name: lv_var
+        volgroup: vg-system
+        size: -1
+
+      - id: fs-root
+        type: format
+        volume: lv-root
+        fstype: ext4
+
+      - id: fs-varlog
+        type: format
+        volume: lv-varlog
+        fstype: ext4
+
+      - id: fs-tmp
+        type: format
+        volume: lv-tmp
+        fstype: ext4
+
+      - id: fs-vartmp
+        type: format
+        volume: lv-vartmp
+        fstype: ext4
+
+      - id: fs-home
+        type: format
+        volume: lv-home
+        fstype: ext4
+
+      - id: fs-swap
+        type: format
+        volume: lv-swap
+        fstype: swap
+
+      - id: fs-var
+        type: format
+        volume: lv-var
+        fstype: ext4
+
+      - id: mnt-efi
+        type: mount
+        device: fs-efi
+        path: /boot/efi
+
+      - id: mnt-boot
+        type: mount
+        device: fs-boot
+        path: /boot
+
+      - id: mnt-root
+        type: mount
+        device: fs-root
+        path: /
+
+      - id: mnt-varlog
+        type: mount
+        device: fs-varlog
+        path: /var/log
+
+      - id: mnt-tmp
+        type: mount
+        device: fs-tmp
+        path: /tmp
+
+      - id: mnt-vartmp
+        type: mount
+        device: fs-vartmp
+        path: /var/tmp
+
+      - id: mnt-home
+        type: mount
+        device: fs-home
+        path: /home
+
+      - id: mnt-var
+        type: mount
+        device: fs-var
+        path: /var
+
+  late-commands:
+    - |
+      curtin in-target --target=/target -- bash -c 'cat >/root/setup-luks-unlock.sh << "EOF"
+      #!/bin/bash
+      set -euxo pipefail
+
+      LOGFILE=/root/setup-luks-unlock.log
+      exec > >(tee -a "$LOGFILE") 2>&1
+
+      LUKS_DEV="/dev/sda3"
+      PASSPHRASE="InfraK3s-2026"
+      TANG_URL="http://192.168.1.70:8082"
+
+      echo "============================================================"
+      echo "[INFO] Inicio de setup-luks-unlock.sh"
+      date
+      echo "============================================================"
+
+      export DEBIAN_FRONTEND=noninteractive
+
+      echo "[INFO] Instalando paquetes necesarios"
+      apt-get update
+      apt-get install -y \
+        dracut \
+        clevis \
+        clevis-luks \
+        clevis-dracut \
+        cryptsetup \
+        cryptsetup-initramfs \
+        lvm2 \
+        jq
+
+      echo "[INFO] Comprobando dispositivo LUKS"
+      ls -l "$LUKS_DEV"
+      cryptsetup isLuks "$LUKS_DEV"
+
+      TMPKEY=$(mktemp)
+      trap '\''rm -f "$TMPKEY"'\'' EXIT
+      printf "%s" "$PASSPHRASE" > "$TMPKEY"
+      chmod 600 "$TMPKEY"
+
+      echo "[INFO] Tokens existentes antes del bind"
+      clevis luks list -d "$LUKS_DEV" || true
+      cryptsetup luksDump "$LUKS_DEV" || true
+
+      echo "[INFO] Asegurando bind Tang para arranque"
+      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+        echo "[INFO] Ya existe token Tang"
+      else
+        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
+      fi
+
+      echo "[INFO] Configurando red en initramfs para Tang"
+      mkdir -p /etc/dracut.conf.d
+      cat >/etc/dracut.conf.d/10-network.conf <<DRACUTEOF
+      hostonly="yes"
+      hostonly_cmdline="yes"
+      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
+      DRACUTEOF
+
+      echo "[INFO] Detectando kernel instalado"
+      KVER=$(ls /lib/modules | sort | tail -n1)
+      echo "[INFO] Kernel detectado: $KVER"
+
+      echo "[INFO] Generando initramfs con dracut"
+      dracut -f -v "/boot/initrd.img-$KVER" "$KVER"
+
+      echo "[INFO] Estado final"
+      cat /etc/crypttab || true
+      ls -lah /boot || true
+      clevis luks list -d "$LUKS_DEV" || true
+
+      echo "[INFO] Fin correcto de setup-luks-unlock.sh"
+      date
+      EOF
+      chmod 700 /root/setup-luks-unlock.sh'
+
+    - |
+      curtin in-target --target=/target -- bash -c '/root/setup-luks-unlock.sh || (echo "[ERROR] Falló /root/setup-luks-unlock.sh"; cat /root/setup-luks-unlock.log || true; exit 1)'

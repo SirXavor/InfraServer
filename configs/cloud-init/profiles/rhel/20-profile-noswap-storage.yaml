@@ -1,5 +1,8 @@
 kind: profile
-name: edge-node
+name: noswap
+
+match:
+  distro: rhel
 
 autoinstall:
   version: 1
@@ -83,12 +86,6 @@ autoinstall:
         volgroup: vg-system
         size: 10G
 
-      - id: lv-swap
-        type: lvm_partition
-        name: lv_swap
-        volgroup: vg-system
-        size: 8G
-
       - id: lv-var
         type: lvm_partition
         name: lv_var
@@ -119,11 +116,6 @@ autoinstall:
         type: format
         volume: lv-home
         fstype: ext4
-
-      - id: fs-swap
-        type: format
-        volume: lv-swap
-        fstype: swap
 
       - id: fs-var
         type: format
@@ -196,7 +188,9 @@ autoinstall:
         dracut \
         clevis \
         clevis-luks \
+        clevis-tpm2 \
         clevis-dracut \
+        tpm2-tools \
         cryptsetup \
         cryptsetup-initramfs \
         lvm2 \
@@ -215,11 +209,11 @@ autoinstall:
       clevis luks list -d "$LUKS_DEV" || true
       cryptsetup luksDump "$LUKS_DEV" || true
 
-      echo "[INFO] Asegurando bind Tang para arranque"
-      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
-        echo "[INFO] Ya existe token Tang"
+      echo "[INFO] Asegurando bind SSS (TPM2 o Tang) para arranque"
+      if clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi sss; then
+        echo "[INFO] Ya existe token SSS"
       else
-        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" tang "{\"url\":\"$TANG_URL\"}"
+        clevis luks bind -y -k "$TMPKEY" -d "$LUKS_DEV" sss "{\"t\":1,\"pins\":{\"tpm2\":{},\"tang\":{\"url\":\"$TANG_URL\"}}}"
       fi
 
       echo "[INFO] Configurando red en initramfs para Tang"
@@ -229,6 +223,11 @@ autoinstall:
       hostonly_cmdline="yes"
       kernel_cmdline+=" rd.neednet=1 ip=dhcp "
       DRACUTEOF
+
+      echo "[INFO] Eliminando swap para nodos Kubernetes"
+      swapoff -a || true
+      rm -f /swap.img || true
+      sed -i "\|/swap.img|d" /etc/fstab || true
 
       echo "[INFO] Detectando kernel instalado"
       KVER=$(ls /lib/modules | sort | tail -n1)

@@ -1,6 +1,9 @@
 kind: profile
 name: noswap
 
+match:
+  distro: ubuntu
+
 autoinstall:
   version: 1
 

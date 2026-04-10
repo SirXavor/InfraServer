@@ -1,6 +1,9 @@
 kind: profile
 name: default
 
+match:
+  distro: ubuntu
+
 autoinstall:
   version: 1
 

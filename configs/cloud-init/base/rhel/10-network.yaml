@@ -1,6 +1,9 @@
 kind: base
 name: network
 
+match:
+  distro: rhel
+
 autoinstall:
   version: 1
 

@@ -1,6 +1,9 @@
 kind: base
 name: installer
 
+match:
+  distro: ubuntu
+
 autoinstall:
   version: 1
   locale: es_ES.UTF-8

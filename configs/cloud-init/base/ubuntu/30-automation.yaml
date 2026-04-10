@@ -1,6 +1,9 @@
 kind: base
 name: automation
 
+match:
+  distro: ubuntu
+
 autoinstall:
   version: 1
 

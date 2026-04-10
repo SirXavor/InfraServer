@@ -1,0 +1,9 @@
+kind: profile
+name: default
+
+match:
+  distro: rhel
+
+kickstart:
+  storage:
+    ...
