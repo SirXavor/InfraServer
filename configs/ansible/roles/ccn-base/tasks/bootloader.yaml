@@ -20,7 +20,7 @@
     block: |
       set superusers="{{ bootloader_grub_user }}"
       password_pbkdf2 {{ bootloader_grub_user }} {{ bootloader_grub_password_pbkdf2 }}
-  backup: true
+    backup: true
 
 - name: Permitir arranque normal sin contraseña en GRUB
   lineinfile:
