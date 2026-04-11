@@ -17,7 +17,7 @@ spec:
     spec:
       containers:
       - name: kernel-provisioning
-        image: xavor/kernel-provisioning:2.13
+        image: xavor/kernel-provisioning:2.14
         ports:
         - name: http
           containerPort: 80
@@ -29,7 +29,7 @@ spec:
         - name: configs
           mountPath: /configs
         - name: provisioning-content
-          mountPath: /var/www/html
+          mountPath: /var/www/html/content
           readOnly: true
       volumes:
       - name: configs
