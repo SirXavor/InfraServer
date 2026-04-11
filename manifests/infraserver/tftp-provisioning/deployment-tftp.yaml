@@ -17,7 +17,7 @@ spec:
       dnsPolicy: ClusterFirstWithHostNet
       containers:
       - name: tftp-provisioning
-        image: xavor/tftp-provisioning:1.0
+        image: xavor/tftp-provisioning:1.1
         ports:
         - name: tftp
           containerPort: 69
