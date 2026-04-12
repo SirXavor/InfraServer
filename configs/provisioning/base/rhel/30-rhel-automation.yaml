@@ -37,6 +37,11 @@ kickstart:
     - |
       set -euo pipefail
 
+      ansible-galaxy collection install ansible.posix
+
+    - |
+      set -euo pipefail
+
       mkdir -p /etc/infraserver /var/log/infraserver
       cat > /etc/infraserver/bootstrap.env << "EOF"
       DS_URL="http://192.168.1.70:8081"

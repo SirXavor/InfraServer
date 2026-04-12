@@ -27,7 +27,7 @@
     - user_item.ssh_keys | length > 0
 
 - name: Añadir claves SSH autorizadas
-  authorized_key:
+  ansible.posix.authorized_key:
     user: "{{ ssh_user.0.name }}"
     key: "{{ ssh_user.1 }}"
     state: present
