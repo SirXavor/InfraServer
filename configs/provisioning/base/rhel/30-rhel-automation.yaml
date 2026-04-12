@@ -32,7 +32,7 @@ kickstart:
     - |
       set -euo pipefail
 
-      dnf install -y git ansible curl python3 ca-certificates
+      dnf install -y git ansible-core curl python3 ca-certificates
 
     - |
       set -euo pipefail
