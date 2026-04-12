@@ -40,7 +40,8 @@ kickstart:
 
       export LANG=C.UTF-8
       export LC_ALL=C.UTF-8
-      ansible-galaxy collection install ansible.posix
+      mkdir -p /usr/share/ansible/collections
+      ansible-galaxy collection install ansible.posix -p /usr/share/ansible/collections
 
     - |
       set -euo pipefail

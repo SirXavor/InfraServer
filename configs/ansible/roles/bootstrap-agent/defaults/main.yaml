@@ -2,8 +2,8 @@
 users:
   - name: xavor
     password: "$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA."
-    groups:
-      - sudo
+    groups: []
+
     shell: /bin/bash
     ssh_keys:
       - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
