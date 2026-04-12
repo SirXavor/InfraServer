@@ -1,0 +1,157 @@
+---
+- name: Crear conexión bond0
+  command: >
+    nmcli con add type bond ifname {{ network.bond.name }}
+    mode {{ network.bond.mode }}
+    con-name {{ network.bond.name }}
+  register: bond_add
+  failed_when: false
+  changed_when: "'successfully added' in bond_add.stdout | lower"
+
+- name: Configurar opciones del bond
+  command: >
+    nmcli con mod {{ network.bond.name }}
+    bond.options
+    "mode={{ network.bond.mode }},
+    miimon={{ network.bond.options.miimon }},
+    updelay={{ network.bond.options.updelay }},
+    downdelay={{ network.bond.options.downdelay }},
+    lacp_rate={{ network.bond.options.lacp_rate }},
+    xmit_hash_policy={{ network.bond.options.xmit_hash_policy }}"
+  changed_when: true
+
+- name: Desactivar IP en bond0
+  command: >
+    nmcli con mod {{ network.bond.name }}
+    ipv4.method disabled ipv6.method ignore
+  changed_when: true
+
+- name: Añadir interfaces al bond
+  command: >
+    nmcli con add type ethernet ifname {{ item }}
+    master {{ network.bond.name }}
+    con-name {{ item }}
+  loop: "{{ network.bond.interfaces }}"
+  register: bond_slaves
+  failed_when: false
+  changed_when: "'successfully added' in bond_slaves.stdout | lower"
+
+- name: Activar interfaces esclavas
+  command: nmcli con up {{ item }}
+  loop: "{{ network.bond.interfaces }}"
+  failed_when: false
+  changed_when: false
+
+- name: Activar bond
+  command: nmcli con up {{ network.bond.name }}
+  failed_when: false
+  changed_when: false
+
+- name: Crear bridges
+  command: >
+    nmcli con add type bridge ifname {{ item.name }}
+    con-name {{ item.name }}
+  loop: "{{ network.bridges | default([]) }}"
+  register: bridge_add
+  failed_when: false
+  changed_when: "'successfully added' in bridge_add.stdout | lower"
+
+- name: Configurar bridge br-admin
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.addresses {{ item.ip4 }}
+    ipv4.method {{ item.method | default('manual') }}
+    bridge.stp {{ 'yes' if item.stp | default(false) else 'no' }}
+  loop: "{{ network.bridges | selectattr('ip4', 'defined') | list }}"
+  changed_when: true
+
+- name: Configurar DNS en bridges con IP
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.dns "{{ item.dns4 | join(' ') }}"
+  loop: "{{ network.bridges | selectattr('dns4', 'defined') | list }}"
+  when: item.dns4 | length > 0
+  changed_when: true
+
+- name: Configurar bridges sin IP
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.method disabled ipv6.method ignore
+    bridge.stp {{ 'yes' if item.stp | default(false) else 'no' }}
+  loop: "{{ network.bridges | rejectattr('ip4', 'defined') | list }}"
+  changed_when: true
+
+- name: Levantar bridges
+  command: nmcli con up {{ item.name }}
+  loop: "{{ network.bridges | default([]) }}"
+  failed_when: false
+  changed_when: false
+
+- name: Crear VLANs
+  command: >
+    nmcli con add type vlan ifname {{ item.name }}
+    dev {{ item.parent }}
+    id {{ item.id }}
+    con-name {{ item.name }}
+  loop: "{{ network.vlans | default([]) }}"
+  register: vlan_add
+  failed_when: false
+  changed_when: "'successfully added' in vlan_add.stdout | lower"
+
+- name: Configurar VLANs puenteadas
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.method disabled ipv6.method ignore
+    master {{ item.bridge }}
+    connection.slave-type bridge
+  loop: "{{ network.vlans | selectattr('bridge', 'defined') | list }}"
+  changed_when: true
+
+- name: Configurar VLANs con IP manual
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.addresses {{ item.ip4 }}
+    ipv4.method {{ item.method | default('manual') }}
+  loop: "{{ network.vlans | selectattr('ip4', 'defined') | list }}"
+  changed_when: true
+
+- name: Configurar gateway en VLANs que lo tengan
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.gateway {{ item.gateway4 }}
+  loop: "{{ network.vlans | selectattr('gateway4', 'defined') | list }}"
+  changed_when: true
+
+- name: Configurar DNS en VLANs
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.dns "{{ item.dns4 | join(' ') }}"
+    ipv4.ignore-auto-dns yes
+  loop: "{{ network.vlans | selectattr('dns4', 'defined') | list }}"
+  when: item.dns4 | length > 0
+  changed_when: true
+
+- name: Configurar métrica de ruta en VLANs
+  command: >
+    nmcli con mod {{ item.name }}
+    ipv4.route-metric {{ item.route_metric }}
+  loop: "{{ network.vlans | selectattr('route_metric', 'defined') | list }}"
+  changed_when: true
+
+- name: Bajar prioridad de p1p1
+  command: >
+    nmcli con mod {{ network.provisioning.interface }}
+    ipv4.never-default yes
+    ipv4.route-metric {{ network.provisioning.route_metric | default(500) }}
+  changed_when: true
+
+- name: Levantar VLANs
+  command: nmcli con up {{ item.name }}
+  loop: "{{ network.vlans | default([]) }}"
+  failed_when: false
+  changed_when: false
+
+- name: Reactivar p1p1 con nueva política
+  command: nmcli con up {{ network.provisioning.interface }}
+  failed_when: false
+  changed_when: false
