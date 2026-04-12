@@ -36,8 +36,7 @@ kickstart:
     - |
       set -euo pipefail
 
-      dnf install -y clevis clevis-luks clevis-dracut clevis-pin-tpm2 clevis-pin-tang tpm2-tools dracut-network cryptsetup lvm2
-  
+      dnf install -y clevis clevis-luks clevis-dracut clevis-pin-tpm2 tpm2-tools dracut-network cryptsetup lvm2 jq  
     - |
       set -euxo pipefail
 
