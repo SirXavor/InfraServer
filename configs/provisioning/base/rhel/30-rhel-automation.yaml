@@ -10,28 +10,6 @@ kickstart:
     - |
       set -euo pipefail
 
-      mkdir -p /etc/yum.repos.d
-
-      cat > /etc/yum.repos.d/infraserver-local.repo << "EOF"
-      [infraserver-baseos]
-      name=InfraServer BaseOS
-      baseurl=http://192.168.1.70:8081/content/repos/rhel/9/BaseOS/
-      enabled=1
-      gpgcheck=0
-
-      [infraserver-appstream]
-      name=InfraServer AppStream
-      baseurl=http://192.168.1.70:8081/content/repos/rhel/9/AppStream/
-      enabled=1
-      gpgcheck=0
-      EOF
-
-      dnf clean all
-      dnf makecache
-
-    - |
-      set -euo pipefail
-
       dnf install -y git ansible-core curl python3 ca-certificates
 
     - |

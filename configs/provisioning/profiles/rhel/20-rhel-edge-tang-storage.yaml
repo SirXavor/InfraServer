@@ -32,31 +32,37 @@ kickstart:
     logvol swap     --fstype=swap --name=lv_swap   --vgname=vg_system --size=8192
     logvol /var     --fstype=xfs  --name=lv_var    --vgname=vg_system --size=1 --grow
 
-  post: |
-    set -euxo pipefail
+  post: 
+    - |
+      set -euo pipefail
 
-    LUKS_DEV="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
-    PASSPHRASE='InfraK3s-2026'
-    TANG_URL='http://192.168.1.70:8082'
+      dnf install -y clevis clevis-luks clevis-dracut clevis-pin-tpm2 clevis-pin-tang tpm2-tools dracut-network cryptsetup lvm2
+  
+    - |
+      set -euxo pipefail
 
-    printf '%s' "$PASSPHRASE" > /root/luks.key
-    chmod 600 /root/luks.key
+      LUKS_DEV="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
+      PASSPHRASE='InfraK3s-2026'
+      TANG_URL='http://192.168.1.70:8082'
 
-    if ! clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
-      clevis luks bind -y -k /root/luks.key -d "$LUKS_DEV" tang \
-        "{\"url\":\"$TANG_URL\"}"
-    fi
+      printf '%s' "$PASSPHRASE" > /root/luks.key
+      chmod 600 /root/luks.key
 
-    mkdir -p /etc/dracut.conf.d
-    cat > /etc/dracut.conf.d/10-network.conf <<'EOF'
-    hostonly="yes"
-    hostonly_cmdline="yes"
-    kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-    add_dracutmodules+=" network "
-    EOF
+      if ! clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+        clevis luks bind -y -k /root/luks.key -d "$LUKS_DEV" tang \
+          "{\"url\":\"$TANG_URL\"}"
+      fi
 
-    sed -i '\| /boot/efi | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
-    sed -i '\| /boot | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
+      mkdir -p /etc/dracut.conf.d
+      cat > /etc/dracut.conf.d/10-network.conf <<'EOF'
+      hostonly="yes"
+      hostonly_cmdline="yes"
+      kernel_cmdline+=" rd.neednet=1 ip=dhcp "
+      add_dracutmodules+=" network "
+      EOF
 
-    dracut -f
-    rm -f /root/luks.key
+      sed -i '\| /boot/efi | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
+      sed -i '\| /boot | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
+
+      dracut -f
+      rm -f /root/luks.key
