@@ -5,6 +5,8 @@ resources:
   - ingress.yaml
   - pvc-provisioning.yaml
   - job-download.yaml
+  - job-stage-rhel-iso.yaml
+  - job-extract-rhel-repo.yaml
   - ../../../configs/provisioning
 
 

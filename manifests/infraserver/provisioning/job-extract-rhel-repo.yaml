@@ -1,0 +1,63 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: extract-rhel-repo
+  namespace: provisioning
+spec:
+  ttlSecondsAfterFinished: 600
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: extract-rhel-repo
+          image: debian:12-slim
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -c
+            - |
+              set -euo pipefail
+
+              apt-get update
+              apt-get install -y mount rsync coreutils
+
+              ISO="/content/rhel/9/rhel-9.iso"
+              MNT="/mnt/rhel-iso"
+              BOOT_DST="/content/rhel/9"
+              REPO_DST="/content/repos/rhel/9"
+
+              if [ ! -f "$ISO" ]; then
+                echo "ERROR: no existe la ISO en $ISO"
+                exit 1
+              fi
+
+              mkdir -p "$MNT"
+              mkdir -p "$BOOT_DST/images/pxeboot"
+              mkdir -p "$REPO_DST"
+
+              if [ -f "$BOOT_DST/images/pxeboot/vmlinuz" ] && [ -f "$BOOT_DST/images/pxeboot/initrd.img" ] && [ -f "$REPO_DST/.treeinfo" ]; then
+                echo "Contenido RHEL ya extraído. Nada que hacer."
+                exit 0
+              fi
+
+              mount -o loop,ro "$ISO" "$MNT"
+
+              echo "Copiando árbol de instalación..."
+              rsync -aH --delete "$MNT"/ "$REPO_DST"/
+
+              echo "Copiando ficheros de arranque pxeboot..."
+              cp -f "$MNT/images/pxeboot/vmlinuz" "$BOOT_DST/images/pxeboot/vmlinuz"
+              cp -f "$MNT/images/pxeboot/initrd.img" "$BOOT_DST/images/pxeboot/initrd.img"
+
+              sync
+              umount "$MNT"
+
+              echo "Extracción completada."
+          volumeMounts:
+            - name: provisioning-content
+              mountPath: /content
+      volumes:
+        - name: provisioning-content
+          persistentVolumeClaim:
+            claimName: provisioning-content
