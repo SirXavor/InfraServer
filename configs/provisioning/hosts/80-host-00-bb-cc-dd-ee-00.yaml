@@ -5,7 +5,7 @@ identity:
   mac:
     - 00-bb-cc-dd-ee-00
 
-profile: noswap
+#profile: noswap
 hostname: edge-node-19
 
 provisioning:
@@ -24,22 +24,110 @@ automation:
 
   roles:
     - bootstrap-agent
-        
+#    - k8s-core
+
   vars:
     test_message: "Prueba de Ansible desde InfraServer"
+
+    # =========================================================
+    # USUARIOS
+    # =========================================================
     users:
       - name: xavor
         password: "$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA."
         groups:
-          - sudo
+          - wheel
         shell: /bin/bash
         ssh_keys:
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMdSPnfzS2L6RdbZl9Tc/mdjMucVt03Z+JeY/Uhb5mV Casa
-          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG  Portatil-Aux
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG Portatil-Aux
 
       - name: admin.c3s
         password: "$6$rPp1eCmX8PAkQz.9$BbbKexET59FkgsQDZMjUl46d4pu1mOp40fbpuiZETuRA.f6KVVYajxQCS6xPDRQAhJ7Bg/WXfihjmEyBOmRSw/"
         groups:
-          - sudo
+          - wheel
         shell: /bin/bash
+
+    # =========================================================
+    # RED
+    # =========================================================
+    network:
+
+      # --- Interfaz de provisioning (DHCP inicial) ---
+      provisioning:
+        interface: p1p1
+        route_metric: 500
+        autoconnect: true
+
+      # --- Bond 10Gb ---
+      bond:
+        name: bond0
+        interfaces:
+          - em1
+          - em2
+        mode: 802.3ad
+        options:
+          miimon: 100
+          updelay: 200
+          downdelay: 200
+          lacp_rate: fast
+          xmit_hash_policy: layer3+4
+
+      # --- Bridges ---
+      bridges:
+        - name: br-admin
+          ip4: 172.16.10.19/24
+          dns4:
+            - 172.16.10.10
+            - 1.1.1.1
+          method: manual
+          stp: false
+          default_route: false
+
+        - name: br-srv
+          method: disabled
+          stp: false
+
+      # --- VLANs ---
+      vlans:
+        # Administración
+        - id: 10
+          name: vlan10
+          parent: bond0
+          bridge: br-admin
+
+        # Servicios
+        - id: 20
+          name: vlan20
+          parent: bond0
+          bridge: br-srv
+
+        # Storage
+        - id: 30
+          name: vlan30
+          parent: bond0
+          ip4: 172.16.30.19/24
+          method: manual
+          default_route: false
+
+        # Replica
+        - id: 40
+          name: vlan40
+          parent: bond0
+          ip4: 172.16.40.19/24
+          method: manual
+          default_route: false
+
+        # Salida a Internet
+        - id: 99
+          name: vlan99
+          parent: bond0
+          ip4: 192.168.99.19/24
+          gateway4: 192.168.99.1
+          dns4:
+            - 1.1.1.1
+            - 8.8.8.8
+          method: manual
+          default_route: true
+          route_metric: 100

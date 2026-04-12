@@ -1,130 +1,197 @@
 ---
-- name: Crear conexión bond0
-  command: >
-    nmcli con add type bond ifname {{ network.bond.name }}
-    mode {{ network.bond.mode }}
-    con-name {{ network.bond.name }}
-  register: bond_add
+- name: Asegurar que NetworkManager está instalado
+  package:
+    name: NetworkManager
+    state: present
+
+- name: Asegurar que NetworkManager está habilitado y arrancado
+  systemd:
+    name: NetworkManager
+    enabled: true
+    state: started
+
+# =========================================================
+# Bond
+# =========================================================
+
+- name: Comprobar si existe la conexión del bond
+  command: nmcli -t -f NAME connection show {{ network.bond.name }}
+  register: bond_conn_check
   failed_when: false
-  changed_when: "'successfully added' in bond_add.stdout | lower"
+  changed_when: false
+
+- name: Crear conexión bond
+  command: >
+    nmcli connection add
+    type bond
+    ifname {{ network.bond.name }}
+    con-name {{ network.bond.name }}
+    mode {{ network.bond.mode }}
+  when: bond_conn_check.rc != 0
 
 - name: Configurar opciones del bond
   command: >
-    nmcli con mod {{ network.bond.name }}
+    nmcli connection modify {{ network.bond.name }}
     bond.options
-    "mode={{ network.bond.mode }},
-    miimon={{ network.bond.options.miimon }},
-    updelay={{ network.bond.options.updelay }},
-    downdelay={{ network.bond.options.downdelay }},
+    "mode={{ network.bond.mode }},miimon={{ network.bond.options.miimon }},
+    updelay={{ network.bond.options.updelay }},downdelay={{ network.bond.options.downdelay }},
     lacp_rate={{ network.bond.options.lacp_rate }},
     xmit_hash_policy={{ network.bond.options.xmit_hash_policy }}"
   changed_when: true
 
-- name: Desactivar IP en bond0
+- name: Desactivar IP en bond
   command: >
-    nmcli con mod {{ network.bond.name }}
-    ipv4.method disabled ipv6.method ignore
+    nmcli connection modify {{ network.bond.name }}
+    ipv4.method disabled
+    ipv6.method ignore
+    connection.autoconnect yes
   changed_when: true
 
-- name: Añadir interfaces al bond
-  command: >
-    nmcli con add type ethernet ifname {{ item }}
-    master {{ network.bond.name }}
-    con-name {{ item }}
+- name: Comprobar conexiones esclavas del bond
+  command: nmcli -t -f NAME connection show {{ item }}
   loop: "{{ network.bond.interfaces }}"
-  register: bond_slaves
+  register: bond_slave_checks
   failed_when: false
-  changed_when: "'successfully added' in bond_slaves.stdout | lower"
+  changed_when: false
 
-- name: Activar interfaces esclavas
-  command: nmcli con up {{ item }}
+- name: Crear conexiones esclavas del bond
+  command: >
+    nmcli connection add
+    type ethernet
+    ifname {{ item.item }}
+    con-name {{ item.item }}
+    master {{ network.bond.name }}
+  loop: "{{ bond_slave_checks.results }}"
+  when: item.rc != 0
+
+- name: Configurar esclavas del bond
+  command: >
+    nmcli connection modify {{ item }}
+    connection.autoconnect yes
+    master {{ network.bond.name }}
+  loop: "{{ network.bond.interfaces }}"
+  changed_when: true
+
+- name: Levantar esclavas del bond
+  command: nmcli connection up {{ item }}
   loop: "{{ network.bond.interfaces }}"
   failed_when: false
   changed_when: false
 
-- name: Activar bond
-  command: nmcli con up {{ network.bond.name }}
+- name: Levantar bond
+  command: nmcli connection up {{ network.bond.name }}
+  failed_when: false
+  changed_when: false
+
+# =========================================================
+# Bridges
+# =========================================================
+
+- name: Comprobar conexiones bridge
+  command: nmcli -t -f NAME connection show {{ item.name }}
+  loop: "{{ network.bridges | default([]) }}"
+  register: bridge_checks
   failed_when: false
   changed_when: false
 
 - name: Crear bridges
   command: >
-    nmcli con add type bridge ifname {{ item.name }}
-    con-name {{ item.name }}
-  loop: "{{ network.bridges | default([]) }}"
-  register: bridge_add
-  failed_when: false
-  changed_when: "'successfully added' in bridge_add.stdout | lower"
+    nmcli connection add
+    type bridge
+    ifname {{ item.item.name }}
+    con-name {{ item.item.name }}
+  loop: "{{ bridge_checks.results }}"
+  when: item.rc != 0
 
-- name: Configurar bridge br-admin
+- name: Configurar bridges con IP
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.addresses {{ item.ip4 }}
     ipv4.method {{ item.method | default('manual') }}
+    ipv4.never-default {{ 'no' if item.default_route | default(false) else 'yes' }}
     bridge.stp {{ 'yes' if item.stp | default(false) else 'no' }}
+    connection.autoconnect yes
   loop: "{{ network.bridges | selectattr('ip4', 'defined') | list }}"
   changed_when: true
 
 - name: Configurar DNS en bridges con IP
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.dns "{{ item.dns4 | join(' ') }}"
+    ipv4.ignore-auto-dns yes
   loop: "{{ network.bridges | selectattr('dns4', 'defined') | list }}"
   when: item.dns4 | length > 0
   changed_when: true
 
 - name: Configurar bridges sin IP
   command: >
-    nmcli con mod {{ item.name }}
-    ipv4.method disabled ipv6.method ignore
+    nmcli connection modify {{ item.name }}
+    ipv4.method disabled
+    ipv6.method ignore
     bridge.stp {{ 'yes' if item.stp | default(false) else 'no' }}
+    connection.autoconnect yes
   loop: "{{ network.bridges | rejectattr('ip4', 'defined') | list }}"
   changed_when: true
 
 - name: Levantar bridges
-  command: nmcli con up {{ item.name }}
+  command: nmcli connection up {{ item.name }}
   loop: "{{ network.bridges | default([]) }}"
+  failed_when: false
+  changed_when: false
+
+# =========================================================
+# VLANs
+# =========================================================
+
+- name: Comprobar conexiones VLAN
+  command: nmcli -t -f NAME connection show {{ item.name }}
+  loop: "{{ network.vlans | default([]) }}"
+  register: vlan_checks
   failed_when: false
   changed_when: false
 
 - name: Crear VLANs
   command: >
-    nmcli con add type vlan ifname {{ item.name }}
-    dev {{ item.parent }}
-    id {{ item.id }}
-    con-name {{ item.name }}
-  loop: "{{ network.vlans | default([]) }}"
-  register: vlan_add
-  failed_when: false
-  changed_when: "'successfully added' in vlan_add.stdout | lower"
+    nmcli connection add
+    type vlan
+    ifname {{ item.item.name }}
+    dev {{ item.item.parent }}
+    id {{ item.item.id }}
+    con-name {{ item.item.name }}
+  loop: "{{ vlan_checks.results }}"
+  when: item.rc != 0
 
 - name: Configurar VLANs puenteadas
   command: >
-    nmcli con mod {{ item.name }}
-    ipv4.method disabled ipv6.method ignore
+    nmcli connection modify {{ item.name }}
+    ipv4.method disabled
+    ipv6.method ignore
     master {{ item.bridge }}
     connection.slave-type bridge
+    connection.autoconnect yes
   loop: "{{ network.vlans | selectattr('bridge', 'defined') | list }}"
   changed_when: true
 
 - name: Configurar VLANs con IP manual
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.addresses {{ item.ip4 }}
     ipv4.method {{ item.method | default('manual') }}
+    ipv4.never-default {{ 'no' if item.default_route | default(false) else 'yes' }}
+    connection.autoconnect yes
   loop: "{{ network.vlans | selectattr('ip4', 'defined') | list }}"
   changed_when: true
 
 - name: Configurar gateway en VLANs que lo tengan
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.gateway {{ item.gateway4 }}
   loop: "{{ network.vlans | selectattr('gateway4', 'defined') | list }}"
   changed_when: true
 
 - name: Configurar DNS en VLANs
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.dns "{{ item.dns4 | join(' ') }}"
     ipv4.ignore-auto-dns yes
   loop: "{{ network.vlans | selectattr('dns4', 'defined') | list }}"
@@ -133,25 +200,73 @@
 
 - name: Configurar métrica de ruta en VLANs
   command: >
-    nmcli con mod {{ item.name }}
+    nmcli connection modify {{ item.name }}
     ipv4.route-metric {{ item.route_metric }}
   loop: "{{ network.vlans | selectattr('route_metric', 'defined') | list }}"
   changed_when: true
 
-- name: Bajar prioridad de p1p1
-  command: >
-    nmcli con mod {{ network.provisioning.interface }}
-    ipv4.never-default yes
-    ipv4.route-metric {{ network.provisioning.route_metric | default(500) }}
-  changed_when: true
-
 - name: Levantar VLANs
-  command: nmcli con up {{ item.name }}
+  command: nmcli connection up {{ item.name }}
   loop: "{{ network.vlans | default([]) }}"
   failed_when: false
   changed_when: false
 
-- name: Reactivar p1p1 con nueva política
-  command: nmcli con up {{ network.provisioning.interface }}
+# =========================================================
+# Verificación de salida por la VLAN por defecto
+# =========================================================
+
+- name: Obtener nombre de la VLAN por defecto
+  set_fact:
+    network_default_vlan_name: >-
+      {{
+        (
+          network.vlans
+          | selectattr('default_route', 'defined')
+          | selectattr('default_route', 'equalto', true)
+          | map(attribute='name')
+          | list
+          | first
+        )
+      }}
+
+- name: Verificar conectividad por la VLAN por defecto
+  command: ping -I {{ network_default_vlan_name }} -c 2 1.1.1.1
+  register: default_vlan_ping
+  changed_when: false
+  failed_when:
+    - network_default_vlan_name is defined
+    - network_default_vlan_name | length > 0
+    - default_vlan_ping.rc != 0
+  when:
+    - network_default_vlan_name is defined
+    - network_default_vlan_name | length > 0
+
+# =========================================================
+# Interfaz de provisioning
+# =========================================================
+
+- name: Comprobar si existe la conexión de provisioning
+  command: nmcli -t -f NAME connection show {{ network.provisioning.interface }}
+  register: provisioning_conn_check
+  failed_when: false
+  changed_when: false
+
+- name: Bajar prioridad de la interfaz de provisioning
+  command: >
+    nmcli connection modify {{ network.provisioning.interface }}
+    ipv4.never-default yes
+    ipv4.route-metric {{ network.provisioning.route_metric | default(500) }}
+    connection.autoconnect {{ 'yes' if network.provisioning.autoconnect | default(true) else 'no' }}
+  when:
+    - provisioning_conn_check.rc == 0
+    - network_default_vlan_name is defined
+    - network_default_vlan_name | length > 0
+
+- name: Reactivar interfaz de provisioning con nueva política
+  command: nmcli connection up {{ network.provisioning.interface }}
+  when:
+    - provisioning_conn_check.rc == 0
+    - network_default_vlan_name is defined
+    - network_default_vlan_name | length > 0
   failed_when: false
   changed_when: false
