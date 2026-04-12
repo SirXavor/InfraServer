@@ -36,7 +36,6 @@ kickstart:
     - sudo
     - ca-certificates
     - git
-    - ansible
 
   post:
     - |
