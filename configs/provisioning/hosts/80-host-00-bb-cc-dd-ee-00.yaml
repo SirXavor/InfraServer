@@ -5,7 +5,7 @@ identity:
   mac:
     - 00-bb-cc-dd-ee-00
 
-#profile: noswap
+profile: noswap
 hostname: edge-node-19
 
 provisioning:

@@ -5,5 +5,58 @@ match:
   distro: rhel
 
 kickstart:
-  storage:
-    ...
+  packages:
+    - clevis
+    - clevis-luks
+    - clevis-dracut
+    - clevis-pin-tang
+    - dracut-network
+    - cryptsetup
+    - lvm2
+
+  partitioning: |
+    zerombr
+    clearpart --all --initlabel
+
+    part /boot/efi --fstype=efi --ondisk=sda --size=512
+    part /boot     --fstype=xfs --ondisk=sda --size=2048
+    part pv.01     --fstype=lvmpv --ondisk=sda --size=1 --grow --encrypted --passphrase="InfraK3s-2026"
+
+    volgroup vg_system pv.01
+
+    logvol /        --fstype=xfs  --name=lv_root   --vgname=vg_system --size=30720
+    logvol /var/log --fstype=xfs  --name=lv_varlog --vgname=vg_system --size=10240
+    logvol /tmp     --fstype=xfs  --name=lv_tmp    --vgname=vg_system --size=8192
+    logvol /var/tmp --fstype=xfs  --name=lv_vartmp --vgname=vg_system --size=8192
+    logvol /home    --fstype=xfs  --name=lv_home   --vgname=vg_system --size=10240
+    logvol swap     --fstype=swap --name=lv_swap   --vgname=vg_system --size=8192
+    logvol /var     --fstype=xfs  --name=lv_var    --vgname=vg_system --size=1 --grow
+
+  post: |
+    set -euxo pipefail
+
+    LUKS_DEV="$(blkid -t TYPE=crypto_LUKS -o device | head -n1)"
+    PASSPHRASE='InfraK3s-2026'
+    TANG_URL='http://192.168.1.70:8082'
+
+    printf '%s' "$PASSPHRASE" > /root/luks.key
+    chmod 600 /root/luks.key
+
+    if ! clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+      clevis luks bind -y -k /root/luks.key -d "$LUKS_DEV" tang \
+        "{\"url\":\"$TANG_URL\"}"
+    fi
+
+    mkdir -p /etc/dracut.conf.d
+    cat > /etc/dracut.conf.d/10-network.conf <<'EOF'
+    hostonly="yes"
+    hostonly_cmdline="yes"
+    kernel_cmdline+=" rd.neednet=1 ip=dhcp "
+    add_dracutmodules+=" network "
+    EOF
+
+    sed -i '\| /boot/efi | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
+    sed -i '\| /boot | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
+
+    dracut -f
+    rm -f /root/luks.key
