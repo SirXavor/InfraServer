@@ -1,3 +1,4 @@
+---
 kind: base
 name: installer
 
@@ -27,6 +28,7 @@ kickstart:
     password_auth: false
 
   packages:
+    - "@^minimal-environment"
     - python3
     - openssh-server
     - curl
@@ -45,7 +47,7 @@ kickstart:
         MAC="$(tr ':' '-' < /sys/class/net/$IFACE/address)"
         mkdir -p /etc/infraserver
         printf '%s\n' \
-          "DS_URL=http://boot.local" \
+          "DS_URL=http://192.168.1.70:8081" \
           "CFG_DIR=/etc/infraserver" \
           > /etc/infraserver/runtime.env
       fi

@@ -1,3 +1,4 @@
+---
 kind: profile
 name: default
 
@@ -5,5 +6,7 @@ match:
   distro: rhel
 
 kickstart:
-  storage:
-    ...
+  storage: |
+    zerombr
+    clearpart --all --initlabel
+    autopart
