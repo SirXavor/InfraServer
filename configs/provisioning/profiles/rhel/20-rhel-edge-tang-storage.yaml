@@ -1,3 +1,4 @@
+---
 kind: profile
 name: edge-node
 
@@ -24,11 +25,12 @@ kickstart:
     logvol swap     --fstype=swap --name=lv_swap   --vgname=vg_system --size=8192
     logvol /var     --fstype=xfs  --name=lv_var    --vgname=vg_system --size=1 --grow
 
-  post: 
+  post:
     - |
       set -euo pipefail
 
-      dnf install -y clevis clevis-luks clevis-dracut clevis-pin-tpm2 tpm2-tools dracut-network cryptsetup lvm2 jq  
+      dnf install -y clevis clevis-luks clevis-dracut dracut-network cryptsetup lvm2 jq
+
     - |
       set -euxo pipefail
 
@@ -36,24 +38,36 @@ kickstart:
       PASSPHRASE='InfraK3s-2026'
       TANG_URL='http://192.168.1.70:8082'
 
+      [ -n "$LUKS_DEV" ] || { echo "[ERROR] No se encontró dispositivo LUKS"; exit 1; }
+
       printf '%s' "$PASSPHRASE" > /root/luks.key
       chmod 600 /root/luks.key
 
-      if ! clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi tang; then
+      echo "[INFO] Estado previo de bindings"
+      clevis luks list -d "$LUKS_DEV" || true
+
+      if ! clevis luks list -d "$LUKS_DEV" 2>/dev/null | grep -qi 'tang'; then
         clevis luks bind -y -k /root/luks.key -d "$LUKS_DEV" tang \
           "{\"url\":\"$TANG_URL\"}"
       fi
+
+      echo "[INFO] Estado posterior de bindings"
+      clevis luks list -d "$LUKS_DEV"
+
+      clevis luks list -d "$LUKS_DEV" | grep -q . || {
+        echo "[ERROR] No se pudo aplicar binding Clevis"
+        exit 1
+      }
 
       mkdir -p /etc/dracut.conf.d
       cat > /etc/dracut.conf.d/10-network.conf <<'EOF'
       hostonly="yes"
       hostonly_cmdline="yes"
       kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-      add_dracutmodules+=" network clevis clevis-luks clevis-pin-tpm2 "
       EOF
 
       sed -i '\| /boot/efi | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
       sed -i '\| /boot | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
 
-      dracut -f -v
+      dracut -fv --regenerate-all
       rm -f /root/luks.key
