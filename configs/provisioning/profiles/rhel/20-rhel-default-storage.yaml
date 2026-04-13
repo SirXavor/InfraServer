@@ -51,11 +51,11 @@ kickstart:
       hostonly="yes"
       hostonly_cmdline="yes"
       kernel_cmdline+=" rd.neednet=1 ip=dhcp "
-      add_dracutmodules+=" network "
+      add_dracutmodules+=" network clevis clevis-luks clevis-pin-tpm2 "
       EOF
 
       sed -i '\| /boot/efi | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
       sed -i '\| /boot | s/defaults/defaults,nosuid,noexec,nodev/' /etc/fstab || true
 
-      dracut -f
+      dracut -f -v
       rm -f /root/luks.key
