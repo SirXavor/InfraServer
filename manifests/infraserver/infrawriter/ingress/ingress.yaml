@@ -1,0 +1,31 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: infrawriter
+  namespace: infrawriter
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /$2
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: infrawriter.tudominio.com
+      http:
+        paths:
+          - path: /api(/|$)(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: infrawriter-api
+                port:
+                  name: http
+          - path: /()(.*)
+            pathType: ImplementationSpecific
+            backend:
+              service:
+                name: infrawriter-frontend
+                port:
+                  name: http
+  tls:
+    - hosts:
+        - infrawriter.tudominio.com
+      secretName: infrawriter-tls
