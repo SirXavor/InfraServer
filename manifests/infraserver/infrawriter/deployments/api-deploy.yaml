@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: infrawriter-api
+  namespace: infrawriter
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: infrawriter-api
+  template:
+    metadata:
+      labels:
+        app: infrawriter-api
+    spec:
+      containers:
+        - name: api
+          image: xavor/infrawriter-backend:1.0
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 8000
+              name: http
+          envFrom:
+            - secretRef:
+                name: infrawriter-git
+          volumeMounts:
+            - name: repo-data
+              mountPath: /data/repo
+          readinessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /docs
+              port: 8000
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+      volumes:
+        - name: repo-data
+          persistentVolumeClaim:
+            claimName: infrawriter-repo
