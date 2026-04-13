@@ -7,6 +7,8 @@ resources:
   - job-download.yaml
   - job-stage-rhel-iso.yaml
   - job-extract-rhel-repo.yaml
+  - rhel-secret.yaml
+  - job-reposync-rhel.yaml
   - ../../../configs/provisioning
 
 

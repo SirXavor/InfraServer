@@ -1,0 +1,40 @@
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: reposync-rhel
+  namespace: provisioning
+spec:
+  schedule: "0 3 * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 2
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      ttlSecondsAfterFinished: 600
+      backoffLimit: 1
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+            - name: reposync-rhel
+              image: xavor/rhel-reposync:1.0
+              imagePullPolicy: IfNotPresent
+              envFrom:
+                - secretRef:
+                    name: rhsm-credentials
+              env:
+                - name: RELEASEVER
+                  value: "9"
+                - name: ARCH
+                  value: "x86_64"
+                - name: SYNC_ROOT
+                  value: "/content/reposync/rhel/9"
+                - name: REPOS
+                  value: "rhel-9-for-x86_64-baseos-rpms,rhel-9-for-x86_64-appstream-rpms"
+              volumeMounts:
+                - name: provisioning-content
+                  mountPath: /content
+          volumes:
+            - name: provisioning-content
+              persistentVolumeClaim:
+                claimName: provisioning-content
