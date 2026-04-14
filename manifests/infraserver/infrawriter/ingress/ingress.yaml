@@ -8,7 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: infrawriter.manabo.org
+    - host: infrawriter.tudominio.com
       http:
         paths:
           - path: /api
@@ -19,14 +19,14 @@ spec:
                 port:
                   name: http
 
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: infrawriter-frontend
-                port:
-                  name: http
+          # - path: /
+          #   pathType: Prefix
+          #   backend:
+          #     service:
+          #       name: infrawriter-frontend
+          #       port:
+          #         name: http
   tls:
     - hosts:
-        - infrawriter.tudominio.com
+        - infrawriter.manabo.org
       secretName: infrawriter-tls
