@@ -4,6 +4,15 @@ name: default
 profile: default
 hostname: default-node
 
+provisioning:
+  distro: rhel
+  version: "9"
+
+  # Variables globales reutilizables (Jinja)
+  server: "192.168.1.70:8081"
+  luks_passphrase: "InfraK3s-2026"
+  tang_url: "http://192.168.1.70:8082"
+
 automation:
   repo:
     url: "https://github.com/SirXavor/InfraServer.git"
@@ -16,3 +25,6 @@ automation:
 
   roles:
     - bootstrap-agent
+
+  vars:
+    test_message: "Default node"

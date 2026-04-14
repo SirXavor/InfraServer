@@ -13,6 +13,11 @@ provisioning:
   distro: ubuntu
   version: "24.04"
 
+  server: "192.168.1.70:8081"
+  luks_passphrase: "InfraK3s-2026"
+  tang_url: "http://192.168.1.70:8082"
+  ubuntu_iso: "ubuntu-24.04.4-live-server-amd64.iso"
+
 automation:
   repo:
     url: "https://github.com/SirXavor/InfraServer.git"
@@ -27,22 +32,21 @@ automation:
     - bootstrap-agent
     - ccn-base
     - k3s-edge
-        
+
   vars:
-    test_message: "Prueba de Ansible desde InfraServer"
+    test_message: "Ubuntu edge node"
+
     users:
       - name: xavor
         password: "$6$q7TEWg0Pi4Nayu3c$Ix0MYhRuNzksBAytU1C/cvB4ou5tLHbm5xHRzo9/zwcOKV25WC7UnCmznD9pYqOAh0nW68tB6RAgT5uXAJlHA."
-        groups:
-          - sudo
+        groups: [sudo]
         shell: /bin/bash
         ssh_keys:
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMq6aqrnd9i5mvcWsB5KiJVXSxn2FAjcimHac6lCdNZs Movil
           - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAICMdSPnfzS2L6RdbZl9Tc/mdjMucVt03Z+JeY/Uhb5mV Casa
-          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG  Portatil-Aux
+          - ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIKO0+q6IUDE9KZap5XW4QjpF3V0BkjSwtIHocqAXihSG Portatil-Aux
 
       - name: admin.c3s
         password: "$6$rPp1eCmX8PAkQz.9$BbbKexET59FkgsQDZMjUl46d4pu1mOp40fbpuiZETuRA.f6KVVYajxQCS6xPDRQAhJ7Bg/WXfihjmEyBOmRSw/"
-        groups:
-          - sudo
+        groups: [sudo]
         shell: /bin/bash
