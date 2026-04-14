@@ -4,22 +4,23 @@ metadata:
   name: infrawriter
   namespace: infrawriter
   annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /$2
+    cert-manager.io/cluster-issuer: letsencrypt-dns
 spec:
   ingressClassName: nginx
   rules:
-    - host: infrawriter.tudominio.com
+    - host: infrawriter.manabo.org
       http:
         paths:
-          - path: /api(/|$)(.*)
-            pathType: ImplementationSpecific
+          - path: /api
+            pathType: Prefix
             backend:
               service:
                 name: infrawriter-api
                 port:
                   name: http
-          - path: /()(.*)
-            pathType: ImplementationSpecific
+
+          - path: /
+            pathType: Prefix
             backend:
               service:
                 name: infrawriter-frontend
