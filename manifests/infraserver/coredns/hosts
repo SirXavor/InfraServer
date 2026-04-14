@@ -1,2 +1,3 @@
 192.168.1.70 boot.local
 192.168.1.70 argocd.local
+192.168.1.30 infrawriter.manabo.org
