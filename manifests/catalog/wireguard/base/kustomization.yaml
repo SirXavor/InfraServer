@@ -1,0 +1,5 @@
+resources:
+  - pvc.yaml
+  - deployment.yaml
+  - tcp-svc.yaml
+  - ingress.yaml

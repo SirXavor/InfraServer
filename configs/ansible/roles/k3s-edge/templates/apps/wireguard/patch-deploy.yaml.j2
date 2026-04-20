@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wg
+  namespace: wireguard
+spec:
+  selector:
+    matchLabels:
+      app: wg-{{ app_instance }}
+  template:
+    metadata:
+      labels:
+        app: wg-{{ app_instance }}
+    spec:
+      containers:
+        - name: wg-easy
+          env:
+            - name: WG_HOST
+              value: "{{ app_values.url }}"
+            - name: WG_PORT
+              value: "{{ app_values.port | string }}"

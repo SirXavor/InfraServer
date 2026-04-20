@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wg
+  namespace: wireguard
+spec:
+  selector:
+    matchLabels:
+      app: wg-0
+  template:
+    metadata:
+      labels:
+        app: wg-0
+    spec:
+      containers:
+      - name: wg-easy
+        env:
+        - name: PASSWORD_HASH
+          valueFrom:
+            secretKeyRef:
+              name: wg-secret-0
+              key: PASSWORD_HASH
+        - name: WG_PORT
+          value: "51818"
+      volumes:
+      - name: config
+        persistentVolumeClaim:
+          claimName: wg-config-0
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wg-web
+  namespace: wireguard-apolo
+spec:
+  selector:
+    app: wg-0

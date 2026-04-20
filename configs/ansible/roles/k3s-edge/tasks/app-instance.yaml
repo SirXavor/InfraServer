@@ -1,0 +1,39 @@
+---
+- name: "{{ app_instance }} | Aplicar recursos compartidos del kind {{ app_kind }}"
+  shell: >
+    kubectl create namespace {{ app_kind }} --dry-run=client -o yaml | kubectl apply -f -
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  changed_when: false
+
+- name: "{{ app_instance }} | Aplicar ExternalSecret del kind {{ app_kind }}"
+  command: >
+    kubectl apply -f
+    {{ automation.repo.local_path | default('/opt/InfraServer') }}/manifests/catalog/{{ app_kind }}/externalsecret.yaml
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"
+  changed_when: false
+  failed_when: false
+
+- name: "{{ app_instance }} | Crear directorio de overlay"
+  file:
+    path: "/tmp/infraserver-apps/{{ app_kind }}/{{ app_instance }}"
+    state: directory
+    mode: '0700'
+
+- name: "{{ app_instance }} | Renderizar templates del overlay"
+  template:
+    src: "apps/{{ app_kind }}/{{ item }}.j2"
+    dest: "/tmp/infraserver-apps/{{ app_kind }}/{{ app_instance }}/{{ item }}"
+    mode: '0600'
+  loop:
+    - kustomization.yaml
+    - patch-deploy.yaml
+    - secret.yaml
+    - svc-udp.yaml
+
+- name: "{{ app_instance }} | Aplicar overlay"
+  command: >
+    kubectl apply -k /tmp/infraserver-apps/{{ app_kind }}/{{ app_instance }}
+  environment:
+    KUBECONFIG: "{{ k3s_kubeconfig }}"

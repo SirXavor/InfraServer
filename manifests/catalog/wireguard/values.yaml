@@ -1,0 +1,18 @@
+kind: wireguard
+schema:
+  - name: url
+    type: string
+    required: true
+    description: "FQDN público del servidor WireGuard (ej: vpn.ejemplo.org)"
+
+  - name: port
+    type: integer
+    required: true
+    default: 51820
+    description: "Puerto UDP de WireGuard"
+
+  - name: password
+    type: string
+    required: true
+    secret: true
+    description: "Contraseña del panel web wg-easy (en claro, se hashea con bcrypt en Ansible)"

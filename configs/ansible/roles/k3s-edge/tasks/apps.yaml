@@ -1,0 +1,11 @@
+---
+- name: Desplegar aplicaciones declaradas en el host
+  include_tasks: app-instance.yaml
+  vars:
+    app_instance: "{{ item.key | lower | replace('_', '-') }}"
+    app_kind: "{{ item.value.kind }}"
+    app_values: "{{ item.value.values }}"
+  loop: "{{ apps | dict2items }}"
+  when:
+    - apps is defined
+    - item.value.enabled | default(true)

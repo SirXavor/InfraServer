@@ -8,3 +8,4 @@ resources:
   - dnsmasq.yaml
   - tftp-provisioning.yaml
   - tang.yaml
+  - infrawriter.yaml

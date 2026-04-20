@@ -3,12 +3,10 @@ kind: Ingress
 metadata:
   name: infrawriter
   namespace: infrawriter
-  annotations:
-    cert-manager.io/cluster-issuer: letsencrypt-dns
 spec:
   ingressClassName: nginx
   rules:
-    - host: infrawriter.tudominio.com
+    - host: infrawriter.manabo.org
       http:
         paths:
           - path: /api
@@ -18,14 +16,13 @@ spec:
                 name: infrawriter-api
                 port:
                   name: http
-
-          # - path: /
-          #   pathType: Prefix
-          #   backend:
-          #     service:
-          #       name: infrawriter-frontend
-          #       port:
-          #         name: http
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: infrawriter-frontend
+                port:
+                  name: http
   tls:
     - hosts:
         - infrawriter.manabo.org

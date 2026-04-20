@@ -2,3 +2,4 @@
 - import_tasks: install.yaml
 - import_tasks: taints.yaml
 - import_tasks: bootstrap.yaml
+- import_tasks: apps.yaml

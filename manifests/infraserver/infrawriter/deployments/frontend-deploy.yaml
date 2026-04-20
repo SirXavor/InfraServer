@@ -15,8 +15,8 @@ spec:
     spec:
       containers:
         - name: frontend
-          image: xavor/infrawriter-frontend:1.0
-          imagePullPolicy: IfNotPresent
+          image: xavor/infrawriter:dev
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
               name: http

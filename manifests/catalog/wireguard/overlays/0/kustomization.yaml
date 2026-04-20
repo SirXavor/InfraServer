@@ -1,0 +1,38 @@
+resources:
+  - ../../base
+  - svc-udp.yaml
+  - secret.yaml
+
+nameSuffix: "-0"
+
+patchesStrategicMerge:
+  - patch.yaml
+
+patches:
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: wg-web-admin
+      namespace: wireguard
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: wg.manabo.org
+      - op: replace
+        path: /spec/rules/0/host
+        value: wg.manabo.org
+
+  - target:
+      group: networking.k8s.io
+      version: v1
+      kind: Ingress
+      name: wg-web-srv
+      namespace: wireguard
+    patch: |-
+      - op: replace
+        path: /spec/tls/0/hosts/0
+        value: wg.manabo.org
+      - op: replace
+        path: /spec/rules/0/host
+        value: wg.manabo.org

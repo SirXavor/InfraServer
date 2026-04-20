@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wg
+  namespace: wireguard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wg-easy
+  template:
+    metadata:
+      labels:
+        app: wg-easy
+    spec:
+      containers:
+      - name: wg-easy
+        image: ghcr.io/wg-easy/wg-easy
+        env:
+          - name: WG_HOST
+            value: "c2et.com"
+          - name: WG_PORT
+            value: "51818"
+          - name: WG_DEFAULT_ADDRESS
+            value: "192.168.254.x"
+          - name: WG_ALLOWED_IPS
+            value: "192.168.200.0/28"
+          - name: WG_DEFAULT_DNS
+            value: "192.168.200.11"
+          - name: PASSWORD_HASH
+            valueFrom:
+              secretKeyRef:
+                name: wg-secret
+                key: PASSWORD_HASH
+        ports:
+          - containerPort: 51818
+            protocol: UDP
+          - containerPort: 51821
+            protocol: TCP
+        volumeMounts:
+          - name: config
+            mountPath: /etc/wireguard
+        securityContext:
+          capabilities:
+            add: ["NET_ADMIN", "SYS_MODULE"]
+      volumes:
+        - name: config
+          persistentVolumeClaim:
+            claimName: wg-config

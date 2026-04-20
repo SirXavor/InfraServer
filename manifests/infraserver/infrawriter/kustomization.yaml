@@ -5,8 +5,9 @@ resources:
   - namespace.yaml
   - pvc/pvc.yaml
   - secrets/secret.yaml
+  - secrets/externalsecret-infrawriter-tls.yaml
   - deployments/api-deploy.yaml
-  # - deployments/frontend-deploy.yaml
+  - deployments/frontend-deploy.yaml
   - services/api-svc.yaml
-  # - services/frontend-svc.yaml
+  - services/frontend-svc.yaml
   - ingress/ingress.yaml
