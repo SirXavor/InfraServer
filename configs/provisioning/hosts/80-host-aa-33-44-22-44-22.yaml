@@ -1,0 +1,22 @@
+kind: host
+name: prueba-2-xavier
+identity:
+  mac:
+  - aa-33-44-22-44-22
+profile: default
+hostname: prueba-2-xavier
+provisioning:
+  distro: rhel
+  version: '9'
+automation:
+  repo:
+    url: https://github.com/SirXavor/InfraServer.git
+    local_path: /opt/InfraServer
+    branch: main
+  apply:
+    playbook: playbooks/bootstrap.yaml
+    interval: 1h
+  roles:
+  - automation
+  - bootstrap-agent
+  vars: {}
