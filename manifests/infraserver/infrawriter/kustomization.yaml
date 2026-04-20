@@ -4,7 +4,6 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - pvc/pvc.yaml
-  - secrets/secret.yaml
   - secrets/externalsecret-infrawriter-tls.yaml
   - secrets/externalsecret-infrawriter-git.yaml
   - deployments/api-deploy.yaml
