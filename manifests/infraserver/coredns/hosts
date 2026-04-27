@@ -2,3 +2,11 @@
 192.168.1.70 argocd.local
 192.168.1.70 infrawriter.manabo.org
 192.168.1.70 solidaria.manabo.org
+192.168.1.30 minio.ranabo.com
+192.168.1.30 rabbitmq.ranabo.com
+192.168.1.30 backend.ranabo.com
+192.168.1.30 plannex.ranabo.com
+192.168.1.30 portal.ranabo.com
+192.168.1.30 streaming.ranabo.com
+192.168.1.30 colossus.ranabo.com
+192.168.1.30 ws.ranabo.com
