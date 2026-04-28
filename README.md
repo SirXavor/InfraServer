@@ -312,3 +312,91 @@ Git define el estado.
 👉 Todo reproducible.
 👉 Todo automatizado.
 👉 Todo escalable.
+
+---
+
+# 📁 Estructura del repositorio
+
+```
+InfraServer/
+├── src/          Código fuente de las imágenes Docker
+├── deploy/       Manifiestos Kubernetes del sistema InfraServer
+├── scripts/      Scripts de build, push y deploy
+├── configs/      Submodulo: plantillas de configuración (SirXavor/infraserver-configs)
+│   └── provisioning/hosts/  Submodulo anidado: definiciones de host (SirXavor/infraserver-hosts)
+└── catalog/      Submodulo: catálogo de aplicaciones (SirXavor/infraserver-catalog)
+```
+
+---
+
+# 🚀 Comenzar
+
+## Clonar el proyecto completo
+
+```bash
+git clone --recurse-submodules https://github.com/SirXavor/InfraServer.git
+```
+
+## Actualizar submodulos tras cambios en repos hijos
+
+```bash
+git submodule update --remote --merge
+```
+
+---
+
+# ✏️ Flujo de trabajo habitual
+
+## Añadir o modificar un host
+
+Los hosts se gestionan en el repo `infraserver-hosts`, accesible en `configs/provisioning/hosts/`:
+
+```bash
+cd configs/provisioning/hosts
+# Crear o editar el YAML del host
+git add .
+git commit -m "feat: añadir host X"
+git push
+
+# Actualizar la referencia en el repo padre
+cd ../../..
+git add configs
+git commit -m "feat: actualizar referencia a hosts"
+git push
+```
+
+## Modificar plantillas o roles de Ansible
+
+Las plantillas viven en el repo `infraserver-configs`, en `configs/`:
+
+```bash
+cd configs
+# Editar base/, profiles/, ansible/ o node-types/
+git add .
+git commit -m "fix: ajustar rol ccn-base"
+git push
+
+# Actualizar referencia en el padre
+cd ..
+git add configs
+git commit -m "chore: actualizar submodulo infraserver-configs"
+git push
+```
+
+## Añadir una aplicación al catálogo
+
+El catálogo vive en el repo `infraserver-catalog`, en `catalog/`:
+
+```bash
+cd catalog
+# Crear nueva aplicación
+git add .
+git commit -m "feat: añadir aplicación Y"
+git push
+
+# Actualizar referencia en el padre
+cd ..
+git add catalog
+git commit -m "feat: añadir Y al catálogo"
+git push
+```
