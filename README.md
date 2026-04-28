@@ -119,7 +119,7 @@ El nodo:
 * Aplica un **bootstrap declarativo** mediante manifests
 
 ```bash
-kubectl apply -k manifests/k3s-edge/bootstrap
+kubectl apply -k configs/node-types/k3s-edge/bootstrap
 ```
 
 👉 Stack típico:
@@ -228,7 +228,7 @@ El despliegue de Kubernetes no se define en Ansible.
 Ejemplo de estructura:
 
 ```
-manifests/
+configs/node-types/
   k3s-edge/
     bootstrap/
       kustomization.yaml

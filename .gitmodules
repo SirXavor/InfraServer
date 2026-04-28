@@ -1,0 +1,6 @@
+[submodule "configs"]
+	path = configs
+	url = https://github.com/SirXavor/infraserver-configs.git
+[submodule "catalog"]
+	path = catalog
+	url = https://github.com/SirXavor/infraserver-catalog.git
