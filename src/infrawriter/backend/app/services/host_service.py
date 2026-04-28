@@ -11,17 +11,17 @@ from config import settings
 
 class HostService:
     def __init__(self):
-        self.repo_path = Path(settings.git_repo_path)
-        self.hosts_dir = self.repo_path / "configs" / "provisioning" / "hosts"
+        self.repo_path = Path(settings.git_hosts_repo_path)
+        self.hosts_dir = self.repo_path  # los YAMLs están en la raíz de infraserver-hosts
         self.git = GitService(
-            repo_path=settings.git_repo_path,
+            repo_path=settings.git_hosts_repo_path,
             branch=settings.git_branch,
             user_name=settings.git_user_name,
             user_email=settings.git_user_email,
         )
 
     def _ensure_repo(self) -> None:
-        self.git.clone_if_needed(settings.git_repo_url, token=settings.git_token)
+        self.git.clone_if_needed(settings.git_hosts_url, token=settings.git_token)
         self.git.sync()
 
     def _get_host_file(self, primary_mac: str) -> Path:

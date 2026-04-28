@@ -13,18 +13,18 @@ from config import settings
 
 class CatalogService:
     def __init__(self):
-        self.repo_path = Path(settings.git_repo_path)
-        self.provisioning_path = self.repo_path / "configs" / "provisioning"
-        self.roles_path = self.repo_path / "configs" / "ansible" / "roles"
+        self.repo_path = Path(settings.git_configs_repo_path)
+        self.provisioning_path = self.repo_path / "provisioning"
+        self.roles_path = self.repo_path / "ansible" / "roles"
         self.git = GitService(
-            repo_path=settings.git_repo_path,
+            repo_path=settings.git_configs_repo_path,
             branch=settings.git_branch,
             user_name=settings.git_user_name,
             user_email=settings.git_user_email,
         )
 
     def _ensure_repo(self) -> None:
-        self.git.clone_if_needed(settings.git_repo_url, token=settings.git_token)
+        self.git.clone_if_needed(settings.git_configs_url, token=settings.git_token)
         self.git.sync()
 
     def _load_classified_docs(self) -> dict[str, list[dict]]:
