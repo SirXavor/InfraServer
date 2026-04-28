@@ -3,6 +3,7 @@ from typing import Optional
 
 from app.models.host import HostManifestModel
 from app.services.git_service import GitService
+from app.services.kustomization_service import KustomizationService
 from app.services.lock_service import RepoLock
 from app.services.yaml_service import YamlService
 from app.utils.repo_config import extract_host_macs, list_host_files, normalize_mac
@@ -19,6 +20,7 @@ class HostService:
             user_name=settings.git_user_name,
             user_email=settings.git_user_email,
         )
+        self.kustomization = KustomizationService()
 
     def _ensure_repo(self) -> None:
         self.git.clone_if_needed(settings.git_hosts_url, token=settings.git_token)
@@ -124,6 +126,7 @@ class HostService:
             self._validate_unique_macs(host)
             YamlService.save_host(file_path, host)
             self.git.commit_and_push(f"feat(hosts): add {host.name}", token=settings.git_token)
+            self.kustomization.register_host(primary_mac)
 
             saved = YamlService.load_host(file_path)
             return self._add_id(saved)
@@ -136,6 +139,7 @@ class HostService:
             if not current_file:
                 raise ValueError("Host no encontrado")
 
+            old_primary_mac = normalize_mac(host_id)
             new_primary_mac = self._extract_primary_mac(host)
             new_file = self._get_host_file(new_primary_mac)
 
@@ -149,6 +153,7 @@ class HostService:
 
             YamlService.save_host(new_file, host)
             self.git.commit_and_push(f"feat(hosts): update {host.name}", token=settings.git_token)
+            self.kustomization.rename_host(old_primary_mac, new_primary_mac)
 
             return {
                 "status": "updated",
@@ -165,9 +170,11 @@ class HostService:
 
             existing = YamlService.load_host(file_path)
             host_name = str(existing.get("name", host_id))
+            primary_mac = normalize_mac(host_id)
 
             file_path.unlink()
             self.git.commit_and_push(f"feat(hosts): remove {host_name}", token=settings.git_token)
+            self.kustomization.unregister_host(primary_mac)
 
             return {
                 "status": "deleted",

@@ -73,10 +73,8 @@ def boot_by_mac(mac: str):
     if not host_doc:
         app.logger.info("BOOT MAC=%s host=unknown -> fallback menu", normalized_mac)
 
-        # contexto mínimo para menú por defecto
         fallback_cfg = {
             "provisioning": {
-                "server": "192.168.1.70:8081",
                 "version": "9",
                 "ubuntu_iso": "ubuntu-24.04.4-live-server-amd64.iso",
             }

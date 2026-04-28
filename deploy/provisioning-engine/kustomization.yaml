@@ -1,5 +1,6 @@
 resources:
   - namespace.yaml
+  - configmap-settings.yaml
   - deployment-kernel.yaml
   - service-kernel.yaml
   - ingress.yaml

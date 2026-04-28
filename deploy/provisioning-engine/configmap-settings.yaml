@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: provisioning-engine-settings
+  namespace: provisioning
+data:
+  DS_URL: "http://192.168.1.70:8081"
+  TANG_URL: "http://192.168.1.70:8082"
+  REPO_URL: "https://github.com/SirXavor/InfraServer.git"

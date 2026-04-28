@@ -1,6 +1,6 @@
 from typing import Any, Dict
 
-from renderers.common import render_templates
+from renderers.common import build_render_context, render_templates
 
 
 def infer_installer(distro: str) -> str:
@@ -26,19 +26,19 @@ item --key s shell   iPXE shell
 choose --default ubuntu --timeout 5000 target && goto ${target}
 
 :ubuntu
-kernel http://{{ provisioning.server }}/vmlinuz ip=dhcp url=http://{{ provisioning.server }}/content/ubuntu/{{ provisioning.ubuntu_iso }} autoinstall ds=nocloud;s=http://{{ provisioning.server }}/ds/default/ ---
-initrd http://{{ provisioning.server }}/initrd
+kernel http://{{ ds_host }}/vmlinuz ip=dhcp url=http://{{ ds_host }}/content/ubuntu/{{ provisioning.ubuntu_iso }} autoinstall ds=nocloud;s=http://{{ ds_host }}/ds/default/ ---
+initrd http://{{ ds_host }}/initrd
 boot
 
 :rhel
-kernel http://{{ provisioning.server }}/content/rhel/{{ provisioning.version }}/images/pxeboot/vmlinuz ip=dhcp inst.repo=http://{{ provisioning.server }}/content/repos/rhel/{{ provisioning.version }}/ inst.ks=http://{{ provisioning.server }}/ks/default.cfg
-initrd http://{{ provisioning.server }}/content/rhel/{{ provisioning.version }}/images/pxeboot/initrd.img
+kernel http://{{ ds_host }}/content/rhel/{{ provisioning.version }}/images/pxeboot/vmlinuz ip=dhcp inst.repo=http://{{ ds_host }}/content/repos/rhel/{{ provisioning.version }}/ inst.ks=http://{{ ds_host }}/ks/default.cfg
+initrd http://{{ ds_host }}/content/rhel/{{ provisioning.version }}/images/pxeboot/initrd.img
 boot
 
 :shell
 shell
 """
-    return render_templates(template, cfg)
+    return render_templates(template, build_render_context(cfg))
 
 
 def render_host_boot(mac: str, cfg: Dict[str, Any]) -> str:
@@ -51,19 +51,19 @@ def render_host_boot(mac: str, cfg: Dict[str, Any]) -> str:
     if distro == "ubuntu":
         template = """#!ipxe
 dhcp
-kernel http://{{ provisioning.server }}/vmlinuz ip=dhcp url=http://{{ provisioning.server }}/content/ubuntu/{{ provisioning.ubuntu_iso }} autoinstall ds=nocloud;s=http://{{ provisioning.server }}/ds/{{ mac }}/ ---
-initrd http://{{ provisioning.server }}/initrd
+kernel http://{{ ds_host }}/vmlinuz ip=dhcp url=http://{{ ds_host }}/content/ubuntu/{{ provisioning.ubuntu_iso }} autoinstall ds=nocloud;s=http://{{ ds_host }}/ds/{{ mac }}/ ---
+initrd http://{{ ds_host }}/initrd
 boot
 """
-        return render_templates(template, {**cfg, "mac": mac})
+        return render_templates(template, {**build_render_context(cfg), "mac": mac})
 
     if installer == "kickstart":
         template = """#!ipxe
 dhcp
-kernel http://{{ provisioning.server }}/content/{{ provisioning.distro }}/{{ provisioning.version }}/images/pxeboot/vmlinuz ip=dhcp inst.repo=http://{{ provisioning.server }}/content/repos/{{ provisioning.distro }}/{{ provisioning.version }}/ inst.ks=http://{{ provisioning.server }}/ks/{{ mac }}.cfg
-initrd http://{{ provisioning.server }}/content/{{ provisioning.distro }}/{{ provisioning.version }}/images/pxeboot/initrd.img
+kernel http://{{ ds_host }}/content/{{ provisioning.distro }}/{{ provisioning.version }}/images/pxeboot/vmlinuz ip=dhcp inst.repo=http://{{ ds_host }}/content/repos/{{ provisioning.distro }}/{{ provisioning.version }}/ inst.ks=http://{{ ds_host }}/ks/{{ mac }}.cfg
+initrd http://{{ ds_host }}/content/{{ provisioning.distro }}/{{ provisioning.version }}/images/pxeboot/initrd.img
 boot
 """
-        return render_templates(template, {**cfg, "mac": mac})
+        return render_templates(template, {**build_render_context(cfg), "mac": mac})
 
     return render_unknown_menu(cfg)

@@ -1,6 +1,6 @@
 from typing import Any, Dict, List
 
-from renderers.common import render_templates
+from renderers.common import build_render_context, render_templates
 
 
 def _as_list(value: Any) -> List[Any]:
@@ -226,7 +226,7 @@ def render_kickstart(cfg: Dict[str, Any]) -> str:
         kickstart = {}
 
     # Renderiza templates Jinja2 dentro del bloque kickstart usando el config completo
-    kickstart = render_templates(kickstart, cfg)
+    kickstart = render_templates(kickstart, build_render_context(cfg))
 
     lines: List[str] = []
 

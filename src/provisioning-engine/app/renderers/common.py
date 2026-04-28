@@ -2,6 +2,19 @@ from typing import Any, Dict
 
 from jinja2 import Environment, StrictUndefined
 
+import settings
+
+
+def build_render_context(cfg: Dict[str, Any]) -> Dict[str, Any]:
+    ds_url = settings.DS_URL
+    return {
+        **cfg,
+        "ds_url": ds_url,
+        "ds_host": ds_url.removeprefix("http://").removeprefix("https://"),
+        "tang_url": settings.TANG_URL,
+        "repo_url": settings.REPO_URL,
+    }
+
 
 def _deep_render(value: Any, env: Environment, context: Dict[str, Any]) -> Any:
     """
