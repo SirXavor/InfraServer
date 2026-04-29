@@ -3,10 +3,14 @@ kind: Ingress
 metadata:
   name: tang
   namespace: tang
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    external-dns.alpha.kubernetes.io/hostname: tang.hermes.ranabo.com
+    external-dns.alpha.kubernetes.io/target: hermes.ranabo.com
 spec:
   ingressClassName: nginx
   rules:
-    - host: tang.local
+    - host: tang.hermes.ranabo.com
       http:
         paths:
           - path: /
@@ -16,3 +20,7 @@ spec:
                 name: tang
                 port:
                   number: 80
+  tls:
+    - hosts:
+        - tang.hermes.ranabo.com
+      secretName: hermes-wildcard-tls

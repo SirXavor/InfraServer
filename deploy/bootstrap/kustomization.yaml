@@ -3,8 +3,9 @@ kind: Kustomization
 
 resources:
   - namespace.yaml
-  - ingress-nginx.yaml
-  - metallb/
+  - externalsecret-hermes-wildcard-tls.yaml
+#  - ingress-nginx.yaml
+#  - metallb/
 
 helmCharts:
   - name: argo-cd

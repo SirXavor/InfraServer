@@ -3,10 +3,14 @@ kind: Ingress
 metadata:
   name: infrawriter
   namespace: infrawriter
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    external-dns.alpha.kubernetes.io/hostname: infrawriter.hermes.ranabo.com
+    external-dns.alpha.kubernetes.io/target: hermes.ranabo.com
 spec:
   ingressClassName: nginx
   rules:
-    - host: infrawriter.manabo.org
+    - host: infrawriter.hermes.ranabo.com
       http:
         paths:
           - path: /api
@@ -25,5 +29,5 @@ spec:
                   name: http
   tls:
     - hosts:
-        - infrawriter.manabo.org
-      secretName: infrawriter-tls
+        - infrawriter.hermes.ranabo.com
+      secretName: hermes-wildcard-tls
