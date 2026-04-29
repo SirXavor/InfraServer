@@ -17,5 +17,5 @@ data:
     pxe-service=x86PC,"Boot BIOS",undionly.kpxe,192.168.1.70
     pxe-service=X86-64_EFI,"Boot UEFI",ipxe.efi,192.168.1.70
 
-    interface=enp2s0
+    interface=eth0
     bind-interfaces
