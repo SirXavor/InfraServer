@@ -5,7 +5,7 @@ resources:
   - provisioning.yaml
 #  - coredns.yaml
   - root.yaml
-#  - dnsmasq.yaml
+  - wireguard.yaml
 #  - tftp-provisioning.yaml
   - tang.yaml
   - infrawriter.yaml
