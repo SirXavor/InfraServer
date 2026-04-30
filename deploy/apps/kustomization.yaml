@@ -9,3 +9,4 @@ resources:
 #  - tftp-provisioning.yaml
   - tang.yaml
   - infrawriter.yaml
+  - smtp-relay.yaml
