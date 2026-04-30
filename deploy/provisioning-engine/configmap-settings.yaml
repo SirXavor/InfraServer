@@ -4,6 +4,6 @@ metadata:
   name: provisioning-engine-settings
   namespace: provisioning
 data:
-  DS_URL: "http://192.168.1.70:8081"
-  TANG_URL: "http://192.168.1.70:8082"
+  DS_URL: "https://boot.hermes.ranabo.com"
+  TANG_URL: "https://tang.hermes.ranabo.com"
   REPO_URL: "https://github.com/SirXavor/InfraServer.git"

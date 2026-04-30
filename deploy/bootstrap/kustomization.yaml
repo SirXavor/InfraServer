@@ -4,6 +4,7 @@ kind: Kustomization
 resources:
   - namespace.yaml
   - externalsecret-hermes-wildcard-tls.yaml
+  - externalsecret-argocd-git-creds.yaml
 #  - ingress-nginx.yaml
 #  - metallb/
 
