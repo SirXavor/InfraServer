@@ -6,7 +6,7 @@ resources:
 #  - coredns.yaml
   - root.yaml
   - wireguard.yaml
-#  - tftp-provisioning.yaml
+  - tftp-provisioning.yaml
   - tang.yaml
   - infrawriter.yaml
   - smtp-relay.yaml
