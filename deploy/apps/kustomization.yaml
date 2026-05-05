@@ -11,3 +11,4 @@ resources:
   - infrawriter.yaml
   - smtp-relay.yaml
   - velero.yaml
+  - infrarouter.yaml
