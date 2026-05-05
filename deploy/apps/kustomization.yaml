@@ -10,3 +10,4 @@ resources:
   - tang.yaml
   - infrawriter.yaml
   - smtp-relay.yaml
+  - velero.yaml
